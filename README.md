@@ -52,3 +52,9 @@ download the file; **Restore** loads it back.
 
 Edit the constants at the top of `app.js` to change anything:
 `START_KG`, `TARGET_KG`, `DEFAULT_BUDGET`, `WATER_GOAL_ML`, `PLAN`, `FOODS`.
+
+## Install to home screen
+On iPhone: open the GitHub Pages URL in Safari, tap Share, then "Add to Home
+Screen". It opens fullscreen with its own icon, no address bar — like a native
+app. (Android Chrome offers an "Install" prompt.) The manifest, icons and
+Apple meta tags are already wired up.

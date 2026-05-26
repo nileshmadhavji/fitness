@@ -15,7 +15,7 @@ html, body {
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
-body { padding-bottom: 88px; }
+body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 #app { max-width: 540px; margin: 0 auto; padding: 0 16px; }
 .loading { text-align: center; color: var(--dim); padding: 80px 0; }
 
