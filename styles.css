@@ -384,11 +384,12 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
   width: 100%;
 }
 .ql-icon {
-  font-size: 1.6rem; flex: 0 0 auto;
+  flex: 0 0 auto;
   width: 44px; height: 44px; border-radius: 12px;
   background: var(--surface2);
   display: flex; align-items: center; justify-content: center;
 }
+.ql-icon svg { width: 26px; height: 26px; }
 .ql-text { min-width: 0; }
 .ql-title { font-weight: 700; font-size: 1rem; }
 .ql-sub { color: var(--dim); font-size: 0.76rem; margin-top: 1px; }

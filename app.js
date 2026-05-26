@@ -305,11 +305,11 @@ function renderToday(){
   // --- quick links: timer + log run ---
   h+=`<div class="dash-split">
     <button class="dash-card quick-link" data-gorun="timer">
-      <div class="ql-icon">⏱</div>
+      <div class="ql-icon"><svg viewBox="0 0 48 48" fill="none" stroke="#92e82a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="25" r="14"/><path d="M24 25 L24 16"/><path d="M24 25 L31 29"/></svg></div>
       <div class="ql-text"><div class="ql-title">Timer</div><div class="ql-sub">Intervals & core</div></div>
     </button>
     <button class="dash-card quick-link" data-gorun="log">
-      <div class="ql-icon">🏃</div>
+      <div class="ql-icon"><svg viewBox="0 0 48 48" fill="none" stroke="#92e82a" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15 L21 24 L12 33"/><path d="M22 15 L31 24 L22 33"/><path d="M32 15 L41 24 L32 33"/></svg></div>
       <div class="ql-text"><div class="ql-title">Log Run</div><div class="ql-sub">Distance & time</div></div>
     </button>
   </div>`;
