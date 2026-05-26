@@ -249,17 +249,45 @@ function ringSvg(size, stroke, pct, color){
 }
 function renderToday(){
   const pi = todaysPlanIndex();
-  const budget=getBudget(), used=caloriesToday(), left=budget-used;
+  const budget=getBudget();
+  const m=macrosToday();
+  const used=m.cal, left=budget-used, calOver=left<0;
   const water=waterToday();
-  const wRows=DB.all("SELECT kg,logged_at FROM weight_log ORDER BY logged_at ASC");
   const lw=latestWeight();
-  const calOver=left<0;
+  const R=78, C=2*Math.PI*R;
+  const dash=C*(calOver?1:Math.max(0,Math.min(1,used/budget)));
 
   let h=`<div class="head">
     <div class="date">${new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}</div>
     <h1>Today</h1></div>`;
 
-  // workout
+  // --- FOOD: calorie ring + macros, the headline of the day ---
+  h+=`<div class="dash-card" data-goto="food" style="cursor:pointer">
+    <div class="dc-head"><span class="dc-title">Calories</span><span class="dc-go">Food ›</span></div>
+    <div class="ring-card" style="padding:6px 0 2px">
+      <div class="ring-wrap" style="width:188px;height:188px">
+        <svg width="188" height="188" viewBox="0 0 188 188">
+          <circle cx="94" cy="94" r="${R}" fill="none" stroke="#2c2c2e" stroke-width="17"/>
+          <circle cx="94" cy="94" r="${R}" fill="none" stroke="${calOver?'var(--move)':'var(--exercise)'}"
+            stroke-width="17" stroke-linecap="round" stroke-dasharray="${dash} ${C}"
+            transform="rotate(-90 94 94)"/>
+        </svg>
+        <div class="ring-center">
+          <div class="big ${calOver?"over":""}" style="font-size:2.6rem">${Math.abs(left)}</div>
+          <div class="lbl">${calOver?"over":"left"}</div>
+        </div>
+      </div>
+      <div class="ring-sub"><b>${used}</b> eaten · <b>${budget}</b> budget</div>
+    </div>
+    <div class="macro-row" style="margin-top:10px">
+      <div class="macro m-p"><div class="m-val">${Math.round(m.p)}g</div><div class="m-lbl">Protein</div></div>
+      <div class="macro m-c"><div class="m-val">${Math.round(m.c)}g</div><div class="m-lbl">Carbs</div></div>
+      <div class="macro m-f"><div class="m-val">${Math.round(m.f)}g</div><div class="m-lbl">Fat</div></div>
+      <div class="macro m-s"><div class="m-val">${Math.round(m.s)}g</div><div class="m-lbl">Sugar</div></div>
+    </div>
+  </div>`;
+
+  // --- workout ---
   if(pi>=0){
     h+=`<div class="dash-card dash-workout" data-goto="workout" data-goday="${pi}" style="cursor:pointer">
       <div class="dc-head"><span class="dc-title">Workout</span><span class="dc-go">Open ›</span></div>
@@ -274,34 +302,36 @@ function renderToday(){
     </div>`;
   }
 
-  // calories + weight side by side
+  // --- quick links: timer + log run ---
   h+=`<div class="dash-split">
-    <div class="dash-card" data-goto="food" style="cursor:pointer">
-      <div class="dc-head"><span class="dc-title">Calories</span></div>
-      <div class="mini-ring">
-        ${ringSvg(64,9,used/budget,calOver?"var(--move)":"var(--exercise)")}
-        <div class="mr-text">
-          <div class="mr-big ${calOver?"over":""}">${Math.abs(left)}</div>
-          <div class="mr-lbl">${calOver?"over":"left"}</div>
-        </div>
-      </div>
-    </div>
+    <button class="dash-card quick-link" data-gorun="timer">
+      <div class="ql-icon">⏱</div>
+      <div class="ql-text"><div class="ql-title">Timer</div><div class="ql-sub">Intervals & core</div></div>
+    </button>
+    <button class="dash-card quick-link" data-gorun="log">
+      <div class="ql-icon">🏃</div>
+      <div class="ql-text"><div class="ql-title">Log Run</div><div class="ql-sub">Distance & time</div></div>
+    </button>
+  </div>`;
+
+  // --- weight + water side by side ---
+  h+=`<div class="dash-split">
     <div class="dash-card dash-weight" data-goto="weight" style="cursor:pointer">
       <div class="dc-head"><span class="dc-title">Weight</span></div>
       <div class="dwt-big">${lw.toFixed(1)} kg</div>
       <div class="dwt-sub">${(START_KG-lw)>=0?"−":"+"}${Math.abs(START_KG-lw).toFixed(1)} kg · ${Math.max(0,lw-TARGET_KG).toFixed(1)} to go</div>
     </div>
-  </div>`;
-
-  // water
-  h+=`<div class="dash-card">
-    <div class="dc-head"><span class="dc-title">Water</span></div>
-    ${waterBlock(water)}
+    <div class="dash-card" data-goto="weight" style="cursor:pointer">
+      <div class="dc-head"><span class="dc-title">Water</span></div>
+      <div class="dwt-big" style="color:var(--stand)">${(water/1000).toFixed(2)}L</div>
+      <div class="dwt-sub">of 2.5L goal</div>
+    </div>
   </div>`;
 
   h+=toolsHTML();
   $app.innerHTML=h;
 }
+
 
 // ---------- water block (shared: dashboard + food) ----------
 function waterBlock(ml){
@@ -594,6 +624,10 @@ document.addEventListener("click", async (e)=>{
   const t=e.target.closest("button, [data-goto]");
   if(!t) return;
 
+  if(t.dataset.gorun){
+    activeTab="run"; runSubTab=t.dataset.gorun;
+    render(); scrollTo(0,0); return;
+  }
   if(t.dataset.goto){
     activeTab=t.dataset.goto;
     if(t.dataset.goday!==undefined) activeDay=+t.dataset.goday;

@@ -376,3 +376,19 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 .food-scroll::-webkit-scrollbar { width: 4px; }
 .food-scroll::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
 .food-scroll .food:last-child { margin-bottom: 0; }
+
+/* ---- dashboard quick-links ---- */
+.quick-link {
+  display: flex; align-items: center; gap: 11px;
+  border: none; cursor: pointer; text-align: left;
+  width: 100%;
+}
+.ql-icon {
+  font-size: 1.6rem; flex: 0 0 auto;
+  width: 44px; height: 44px; border-radius: 12px;
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+}
+.ql-text { min-width: 0; }
+.ql-title { font-weight: 700; font-size: 1rem; }
+.ql-sub { color: var(--dim); font-size: 0.76rem; margin-top: 1px; }
