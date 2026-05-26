@@ -1,15 +1,9 @@
-// db.js — real SQLite (sql.js / WASM) running in the browser.
-// Persists the whole DB file into IndexedDB so it survives reloads,
-// and can export/import an actual .db file.
+// db.js — real SQLite (sql.js / WASM) in the browser.
 
 const DB = (() => {
-  let SQL = null;
-  let db = null;
-  const IDB_NAME = "lean5-db";
-  const IDB_STORE = "files";
-  const IDB_KEY = "gym.db";
+  let SQL = null, db = null;
+  const IDB_NAME = "lean5-db", IDB_STORE = "files", IDB_KEY = "gym.db";
 
-  // ---- tiny IndexedDB helpers (to store the binary DB blob) ----
   function idbOpen() {
     return new Promise((res, rej) => {
       const r = indexedDB.open(IDB_NAME, 1);
@@ -21,8 +15,7 @@ const DB = (() => {
   async function idbGet() {
     const d = await idbOpen();
     return new Promise((res, rej) => {
-      const tx = d.transaction(IDB_STORE, "readonly");
-      const rq = tx.objectStore(IDB_STORE).get(IDB_KEY);
+      const rq = d.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(IDB_KEY);
       rq.onsuccess = () => res(rq.result || null);
       rq.onerror = () => rej(rq.error);
     });
@@ -40,24 +33,30 @@ const DB = (() => {
   const SCHEMA = `
     CREATE TABLE IF NOT EXISTS workout_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      day TEXT NOT NULL,
-      ex_id TEXT NOT NULL,
-      weight TEXT,
-      reps TEXT,
-      logged_at TEXT NOT NULL
+      day TEXT NOT NULL, ex_id TEXT NOT NULL,
+      weight TEXT, reps TEXT, logged_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS run_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      distance_km REAL,
-      minutes REAL,
-      note TEXT,
+      distance_km REAL, minutes REAL, note TEXT, logged_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS weight_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kg REAL NOT NULL, logged_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS food_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, calories INTEGER NOT NULL,
+      protein REAL DEFAULT 0, fat REAL DEFAULT 0, carbs REAL DEFAULT 0,
+      sugar REAL DEFAULT 0, iron REAL DEFAULT 0, zinc REAL DEFAULT 0, potassium REAL DEFAULT 0,
       logged_at TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS cal_log (
+    CREATE TABLE IF NOT EXISTS water_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      label TEXT,
-      calories INTEGER,
-      logged_at TEXT NOT NULL
+      ml INTEGER NOT NULL, logged_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY, value TEXT
     );
   `;
 
@@ -66,50 +65,56 @@ const DB = (() => {
       locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`
     });
     let saved = null;
-    try { saved = await idbGet(); } catch (e) { saved = null; }
+    try { saved = await idbGet(); } catch (e) {}
     db = saved ? new SQL.Database(new Uint8Array(saved)) : new SQL.Database();
     db.run(SCHEMA);
+    migrate();        // bring older databases up to the current schema
     await save();
   }
 
-  async function save() {
-    if (!db) return;
-    try { await idbPut(db.export()); } catch (e) { /* storage blocked — session still works */ }
+  // Add any columns that older saved databases are missing.
+  // CREATE TABLE IF NOT EXISTS won't alter an existing table, so we do it here.
+  function migrate() {
+    const need = {
+      food_log: {
+        protein: "REAL DEFAULT 0", fat: "REAL DEFAULT 0", carbs: "REAL DEFAULT 0",
+        sugar: "REAL DEFAULT 0", iron: "REAL DEFAULT 0", zinc: "REAL DEFAULT 0",
+        potassium: "REAL DEFAULT 0"
+      }
+    };
+    for (const table in need) {
+      let cols = [];
+      try {
+        const r = db.exec(`PRAGMA table_info(${table})`);
+        if (r.length) cols = r[0].values.map(v => v[1]);
+      } catch (e) { continue; }
+      for (const col in need[table]) {
+        if (!cols.includes(col)) {
+          try { db.run(`ALTER TABLE ${table} ADD COLUMN ${col} ${need[table][col]}`); }
+          catch (e) { /* already there or table missing */ }
+        }
+      }
+    }
   }
-
-  // run a statement with params, then persist
-  async function run(sql, params = []) {
-    db.run(sql, params);
-    await save();
-  }
-
-  // query → array of plain objects
+  async function save() { if (!db) return; try { await idbPut(db.export()); } catch (e) {} }
+  async function run(sql, params = []) { db.run(sql, params); await save(); }
   function all(sql, params = []) {
     const res = db.exec(sql, params);
     if (!res.length) return [];
     const { columns, values } = res[0];
-    return values.map(row => {
-      const o = {};
-      columns.forEach((c, i) => o[c] = row[i]);
-      return o;
-    });
+    return values.map(row => { const o = {}; columns.forEach((c, i) => o[c] = row[i]); return o; });
   }
-
-  // ---- export / import a real .db file ----
   function exportFile() {
     const blob = new Blob([db.export()], { type: "application/octet-stream" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "gym.db";
-    a.click();
+    a.download = "gym.db"; a.click();
     URL.revokeObjectURL(a.href);
   }
   async function importFile(file) {
-    const buf = new Uint8Array(await file.arrayBuffer());
-    db = new SQL.Database(buf);
+    db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
     db.run(SCHEMA);
     await save();
   }
-
   return { init, run, all, save, exportFile, importFile };
 })();
