@@ -464,7 +464,7 @@ function renderWeight(){
     <div class="field-row">
       <div class="field"><label>Weight (kg)</label>
         <input type="number" inputmode="decimal" id="wKg" placeholder="${latest.toFixed(1)}"></div>
-      <div class="field"><label>Date</label>
+      <div class="field field-date"><label>Date</label>
         <input type="date" id="wDate" value="${todayISO()}" max="${todayISO()}"></div>
     </div>
     <button class="btn btn-go" id="saveWeight">Log Weight</button>
