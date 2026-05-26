@@ -43,7 +43,8 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 .ex-meta b { color: var(--exercise); font-weight: 700; }
 .logline { display: flex; gap: 8px; margin-top: 11px; }
 .logline input {
-  flex: 1; background: var(--surface2); color: var(--text);
+  flex: 1; min-width: 0; box-sizing: border-box;
+  background: var(--surface2); color: var(--text);
   border: none; border-radius: 10px;
   padding: 11px; font-size: 0.95rem; text-align: center; font-weight: 600;
 }
@@ -67,12 +68,13 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 .field { margin-bottom: 10px; }
 .field label { display: block; font-size: 0.72rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 6px; }
 .field input {
-  width: 100%; background: var(--surface2); color: var(--text);
+  width: 100%; min-width: 0; box-sizing: border-box;
+  background: var(--surface2); color: var(--text);
   border: none; border-radius: 12px; padding: 13px 14px; font-size: 1.05rem; font-weight: 600;
 }
 .field input:focus { outline: none; box-shadow: inset 0 0 0 2px var(--exercise); }
 .field-row { display: flex; gap: 8px; }
-.field-row .field { flex: 1; }
+.field-row .field { flex: 1; min-width: 0; }
 
 /* weight chart */
 .chart-card { background: var(--surface); border-radius: 16px; padding: 16px 12px 8px; margin-bottom: 12px; }
@@ -343,3 +345,15 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
   font-size: 0.9rem; font-weight: 700;
 }
 .subtab.active { background: var(--surface2); color: var(--text); }
+
+/* ---- food category scroll boxes ---- */
+.food-scroll {
+  max-height: 234px;          /* ~4 items visible, then scroll inside */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 6px;
+  padding-right: 2px;
+}
+.food-scroll::-webkit-scrollbar { width: 4px; }
+.food-scroll::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 4px; }
+.food-scroll .food:last-child { margin-bottom: 0; }

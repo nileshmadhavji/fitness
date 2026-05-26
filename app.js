@@ -545,8 +545,10 @@ function renderFood(){
   }
   h+=`<div class="divider"></div>`;
   FOOD_CATS.forEach(cat=>{
-    h+=`<div class="cat-head">${cat}</div>`;
-    FOODS.filter(f=>f.cat===cat).forEach(f=>{
+    const items=FOODS.filter(f=>f.cat===cat);
+    h+=`<div class="cat-head">${cat} <span style="color:var(--dim);font-weight:600">· ${items.length}</span></div>`;
+    h+=`<div class="food-scroll">`;
+    items.forEach(f=>{
       h+=`<button class="food" data-food="${esc(f.name)}">
         <div class="food-main">
           <div class="food-name">${esc(f.name)}</div>
@@ -555,6 +557,7 @@ function renderFood(){
         <div class="food-cal">${f.cal}<span> cal</span></div>
       </button>`;
     });
+    h+=`</div>`;
   });
   h+=toolsHTML();
   $app.innerHTML=h;
