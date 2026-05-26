@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Lean 5">
+<meta name="apple-mobile-web-app-title" content="REP">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <link rel="stylesheet" href="styles.css">
@@ -19,6 +19,23 @@
 <body>
 
 <div id="app"><div class="loading">Loading…</div></div>
+
+<div class="timer-screen" id="timerScreen">
+  <div class="ts-phase" id="tsPhase">Get Ready</div>
+  <div class="ts-round" id="tsRound">Round 1 / 10</div>
+  <div class="ts-ring-wrap">
+    <svg class="ts-ring" viewBox="0 0 240 240">
+      <circle class="ts-ring-track" cx="120" cy="120" r="110"/>
+      <circle class="ts-ring-fill" id="tsRing" cx="120" cy="120" r="110"/>
+    </svg>
+    <div class="ts-count" id="tsCount">10</div>
+  </div>
+  <div class="ts-msg" id="tsMsg"></div>
+  <div class="ts-controls">
+    <button class="ts-btn ts-btn-main" id="tsPause">Pause</button>
+    <button class="ts-btn ts-btn-ghost" id="tsQuit">Quit</button>
+  </div>
+</div>
 
 <nav class="tabbar" id="tabbar" hidden>
   <button class="tab active" data-tab="today">

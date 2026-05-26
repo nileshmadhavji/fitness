@@ -1,4 +1,4 @@
-# Lean 5
+# REP
 
 A no-clutter training tracker. Five tabs: **Today · Workout · Run · Weight · Food**.
 Black with Apple-Fitness colours, built to live on your phone.
@@ -14,8 +14,11 @@ Deadlift, Conditioning. Each exercise shows last time's numbers; type today's,
 Save, beat it next time.
 
 ## Run
-Log distance, time and a note. Green chart of distance over time, plus total
-km and pace per run.
+Treadmill interval timers at the top — five belt-aware presets (30/30, 60/60,
+30/90, 45/75, 20/40). Each runs fullscreen with screen wake-lock, beeps, and a
+dedicated "Slow Down" phase between work and rest so the timing matches a real
+treadmill belt. Below: log distance, time and a note, with a green chart of
+distance over time.
 
 ## Weight
 Log weight whenever, with a date field so you can backdate entries. Green trend chart with a dashed target line, current

@@ -1,6 +1,6 @@
 {
-  "name": "Lean 5",
-  "short_name": "Lean 5",
+  "name": "REP",
+  "short_name": "REP",
   "description": "Training, weight and food tracker.",
   "start_url": "./index.html",
   "scope": "./",

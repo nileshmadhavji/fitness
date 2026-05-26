@@ -222,3 +222,124 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 
 /* date field */
 .field input[type=date] { color-scheme: dark; }
+
+/* ---- treadmill interval timers ---- */
+.timer-list-head {
+  font-size: 0.74rem; font-weight: 700; color: var(--dim);
+  text-transform: uppercase; letter-spacing: 0.8px; margin: 22px 4px 8px;
+}
+.timer-preset {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text);
+  background: var(--surface); border-radius: 14px;
+  padding: 14px; margin-bottom: 7px;
+  cursor: pointer; border: none; width: 100%; text-align: left;
+}
+.timer-preset:active { background: var(--surface2); }
+.tp-main { flex: 1; min-width: 0; }
+.tp-name { font-size: 1rem; font-weight: 700; color: var(--text); }
+.tp-detail { color: var(--dim); font-size: 0.78rem; margin-top: 3px; line-height: 1.4; }
+.tp-go {
+  width: 40px; height: 40px; border-radius: 50%;
+  background: var(--exercise); color: #000;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.1rem; flex: 0 0 auto;
+}
+
+/* fullscreen timer overlay */
+.timer-screen {
+  position: fixed; inset: 0; z-index: 100;
+  display: none; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: #000; text-align: center;
+  padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+}
+.timer-screen.show { display: flex; }
+.ts-phase {
+  font-size: 1.2rem; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 4px;
+}
+.ts-round { color: rgba(255,255,255,0.7); font-size: 0.95rem; font-weight: 600; }
+.ts-ring-wrap {
+  position: relative; width: 70vw; max-width: 320px;
+  aspect-ratio: 1; margin: 16px 0;
+}
+.ts-ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ts-ring-track { fill: none; stroke: #1c1c1e; stroke-width: 11; }
+.ts-ring-fill {
+  fill: none; stroke-width: 11; stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear, stroke 0.3s;
+}
+.ts-count {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 23vw; font-weight: 800; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.ts-count.small { font-size: 16vw; }
+.ts-msg { font-size: 1.5rem; font-weight: 800; min-height: 1.6rem; }
+.ts-controls { display: flex; gap: 12px; margin-top: 26px; }
+.ts-btn {
+  border: none; border-radius: 100px; cursor: pointer;
+  font-size: 1rem; font-weight: 800; padding: 14px 26px;
+}
+.ts-btn-main { background: #fff; color: #000; }
+.ts-btn-ghost { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* black background always; the COUNTER colour signals the phase
+   (Apple Fitness palette: lime = go, yellow = slow, cyan = rest, red = final secs) */
+.timer-screen { background: #000; }
+.timer-screen .ts-count { color: #fff; }
+.timer-screen .ts-phase { color: var(--dim); }
+
+.timer-screen.ph-prepare .ts-count { color: #ffffff; }
+.timer-screen.ph-prepare .ts-phase { color: var(--dim); }
+
+.timer-screen.ph-work .ts-count { color: #92e82a; }      /* go / work — lime */
+.timer-screen.ph-work .ts-phase { color: #92e82a; }
+.timer-screen.ph-work.ending .ts-count { color: #fa114f; } /* last 3s — red */
+.timer-screen.ph-work.ending .ts-phase { color: #fa114f; }
+
+.timer-screen.ph-trans .ts-count { color: #ffd426; }     /* slow down — yellow */
+.timer-screen.ph-trans .ts-phase { color: #ffd426; }
+.timer-screen.ph-trans .ts-msg  { color: #ffd426; }
+
+.timer-screen.ph-rest .ts-count { color: #1ad1ff; }      /* rest — cyan */
+.timer-screen.ph-rest .ts-phase { color: #1ad1ff; }
+
+.timer-screen.ph-done .ts-count { color: #92e82a; }
+.timer-screen.ph-done .ts-phase { color: #92e82a; }
+
+/* progress ring colour per phase */
+.timer-screen.ph-prepare .ts-ring-fill { stroke: #ffffff; }
+.timer-screen.ph-work    .ts-ring-fill { stroke: #92e82a; }
+.timer-screen.ph-work.ending .ts-ring-fill { stroke: #fa114f; }
+.timer-screen.ph-trans   .ts-ring-fill { stroke: #ffd426; }
+.timer-screen.ph-rest    .ts-ring-fill { stroke: #1ad1ff; }
+.timer-screen.ph-done    .ts-ring-fill { stroke: #92e82a; }
+
+/* ---- inner sub-tabs (Run: Timer / Log) ---- */
+.subtabs {
+  display: flex; gap: 6px; background: var(--surface);
+  border-radius: 12px; padding: 4px; margin: 4px 0 16px;
+}
+.subtab {
+  flex: 1; border: none; cursor: pointer;
+  background: transparent; color: var(--dim);
+  border-radius: 9px; padding: 9px; font-size: 0.88rem; font-weight: 700;
+}
+.subtab.active { background: var(--exercise); color: #000; }
+
+/* ---- inner sub-tabs (Run: Timer / Log) ---- */
+.subtabs {
+  display: flex; gap: 4px;
+  background: var(--surface); border-radius: 12px;
+  padding: 4px; margin: 4px 0 16px;
+}
+.subtab {
+  flex: 1; border: none; cursor: pointer;
+  background: transparent; color: var(--dim);
+  border-radius: 9px; padding: 10px;
+  font-size: 0.9rem; font-weight: 700;
+}
+.subtab.active { background: var(--surface2); color: var(--text); }

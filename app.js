@@ -113,6 +113,36 @@ const FOODS = [
 ];
 const FOOD_CATS = ["Breakfast","Lunch","Dinner","Snacks"];
 
+// ---- treadmill interval timer presets ----
+// trans = belt slowdown window (its own phase between work and rest)
+const TIMER_PRESETS = [
+  {id:"t3030", name:"30 / 30 × 10", work:30, rest:30, trans:8, rounds:10,
+   note:"Sprint / walk · belt-aware"},
+  {id:"t6060", name:"60 / 60 × 10", work:60, rest:60, trans:8, rounds:10,
+   note:"Run / walk · classic"},
+  {id:"t3090", name:"30 / 90 × 8", work:30, rest:90, trans:8, rounds:8,
+   note:"Hard sprints, long recovery"},
+  {id:"t4575", name:"45 / 75 × 8", work:45, rest:75, trans:8, rounds:8,
+   note:"Middle-ground intervals"},
+  {id:"t2040", name:"20 / 40 × 12", work:20, rest:40, trans:6, rounds:12,
+   note:"Short sharp sprints"},
+  {id:"t3m1m", name:"3min / 1min × 6", work:180, rest:60, trans:8, rounds:6,
+   note:"Endurance intervals"},
+];
+
+// ---- core / ab interval timers (best of the originals) ----
+const CORE_PRESETS = [
+  {id:"c1", name:"Core 5 — Plank Series", work:30, rest:15, trans:0, rounds:5,
+   work_label:"Plank", note:"Everyday core"},
+  {id:"c3", name:"Tabata Plank", work:20, rest:10, trans:0, rounds:8,
+   work_label:"Hold", note:"Short & sharp"},
+  {id:"c4", name:"Anti-Sit — Plank & Reverse", work:30, rest:30, trans:0, rounds:6,
+   work_label:"Plank / Reverse", note:"Alternating holds"},
+  {id:"c5", name:"Abs of Steel — Endurance", work:90, rest:30, trans:0, rounds:5,
+   work_label:"Plank Hold", note:"Long grindy holds"},
+];
+const TIMER_PREP = 10;   // build-up before round 1
+
 const DEFAULT_BUDGET = 2100;
 const START_KG = 82.1;
 const TARGET_KG = 72;
@@ -122,6 +152,7 @@ const GLASS_COUNT = WATER_GOAL_ML / GLASS_ML;
 
 let activeTab = "today";
 let activeDay = 0;
+let runSubTab = "timer";  // "timer" | "log"
 const $app = document.getElementById("app");
 
 function flash(msg){
@@ -341,34 +372,64 @@ async function saveWorkout(){
 function renderRun(){
   const rows=DB.all("SELECT * FROM run_log ORDER BY logged_at ASC");
   const total=rows.reduce((s,r)=>s+(r.distance_km||0),0);
+
   let h=`<div class="head"><div class="date">Cardio</div><h1>Run</h1></div>
-    <div class="stat"><div class="num">${total.toFixed(1)}</div><div class="unit">total km logged</div></div>`;
-  h+=lineChart(rows.map(r=>({label:fmtDate(r.logged_at),value:r.distance_km||0})),
-    {emptyMsg:"Log at least 2 runs to see your distance chart."});
-  h+=`<div class="card">
-    <div class="field-row">
-      <div class="field"><label>Distance km</label><input type="number" inputmode="decimal" id="runDist" placeholder="5"></div>
-      <div class="field"><label>Time min</label><input type="number" inputmode="decimal" id="runMin" placeholder="28"></div>
-    </div>
-    <div class="field"><label>Note</label><input type="text" id="runNote" placeholder="easy pace"></div>
-    <button class="btn btn-go" id="saveRun">Log Run</button>
-  </div>
-  <div class="cat-head">Recent runs</div>`;
-  if(!rows.length) h+=`<div class="empty">No runs logged yet.</div>`;
-  else [...rows].reverse().forEach(r=>{
-    const pace=(r.distance_km&&r.minutes)?(r.minutes/r.distance_km).toFixed(1)+" min/km":"";
-    h+=`<div class="entry">
-      <div class="entry-main">
-        <div class="entry-name">${(+r.distance_km).toFixed(1)} km${r.note?" · "+esc(r.note):""}</div>
-        <div class="entry-sub">${fmtDate(r.logged_at)}${pace?" · "+pace:""}</div>
-      </div>
-      <span class="entry-val">${r.minutes?(+r.minutes)+"m":""}</span>
-      <button class="x" data-del-run="${r.id}">✕</button>
+    <div class="subtabs">
+      <button class="subtab ${runSubTab==="timer"?"active":""}" data-runsub="timer">Timer</button>
+      <button class="subtab ${runSubTab==="log"?"active":""}" data-runsub="log">Log Run</button>
     </div>`;
-  });
+
+  if(runSubTab==="timer"){
+    h+=`<div class="timer-list-head">Treadmill Intervals</div>`;
+    TIMER_PRESETS.forEach(p=>{
+      h+=`<button class="timer-preset" data-timer="${p.id}">
+        <div class="tp-main">
+          <div class="tp-name">${esc(p.name)}</div>
+          <div class="tp-detail">${esc(p.note)} · ${p.trans}s belt slowdown</div>
+        </div>
+        <div class="tp-go">▶</div>
+      </button>`;
+    });
+    h+=`<div class="timer-list-head">Core Timers</div>`;
+    CORE_PRESETS.forEach(p=>{
+      h+=`<button class="timer-preset" data-coretimer="${p.id}">
+        <div class="tp-main">
+          <div class="tp-name">${esc(p.name)}</div>
+          <div class="tp-detail">${esc(p.note)} · ${p.rounds}× ${p.work}s / ${p.rest}s</div>
+        </div>
+        <div class="tp-go">▶</div>
+      </button>`;
+    });
+  } else {
+    h+=`<div class="stat"><div class="num">${total.toFixed(1)}</div><div class="unit">total km logged</div></div>`;
+    h+=lineChart(rows.map(r=>({label:fmtDate(r.logged_at),value:r.distance_km||0})),
+      {emptyMsg:"Log at least 2 runs to see your distance chart."});
+    h+=`<div class="card">
+      <div class="field-row">
+        <div class="field"><label>Distance km</label><input type="number" inputmode="decimal" id="runDist" placeholder="5"></div>
+        <div class="field"><label>Time min</label><input type="number" inputmode="decimal" id="runMin" placeholder="28"></div>
+      </div>
+      <div class="field"><label>Note</label><input type="text" id="runNote" placeholder="easy pace"></div>
+      <button class="btn btn-go" id="saveRun">Log Run</button>
+    </div>
+    <div class="cat-head">Recent runs</div>`;
+    if(!rows.length) h+=`<div class="empty">No runs logged yet.</div>`;
+    else [...rows].reverse().forEach(r=>{
+      const pace=(r.distance_km&&r.minutes)?(r.minutes/r.distance_km).toFixed(1)+" min/km":"";
+      h+=`<div class="entry">
+        <div class="entry-main">
+          <div class="entry-name">${(+r.distance_km).toFixed(1)} km${r.note?" · "+esc(r.note):""}</div>
+          <div class="entry-sub">${fmtDate(r.logged_at)}${pace?" · "+pace:""}</div>
+        </div>
+        <span class="entry-val">${r.minutes?(+r.minutes)+"m":""}</span>
+        <button class="x" data-del-run="${r.id}">✕</button>
+      </div>`;
+    });
+  }
   h+=toolsHTML();
   $app.innerHTML=h;
 }
+
 async function saveRun(){
   const dist=document.getElementById("runDist").value.trim();
   const min=document.getElementById("runMin").value.trim();
@@ -537,6 +598,7 @@ document.addEventListener("click", async (e)=>{
   }
   if(t.dataset.tab){ activeTab=t.dataset.tab; render(); scrollTo(0,0); return; }
   if(t.dataset.day!==undefined){ activeDay=+t.dataset.day; renderWorkout(); scrollTo(0,0); return; }
+  if(t.dataset.runsub){ runSubTab=t.dataset.runsub; renderRun(); scrollTo(0,0); return; }
 
   if(t.dataset.water!==undefined){
     await setWater(+t.dataset.water);
@@ -544,6 +606,16 @@ document.addEventListener("click", async (e)=>{
     return;
   }
 
+  if(t.dataset.timer){
+    const p=TIMER_PRESETS.find(x=>x.id===t.dataset.timer);
+    if(p) Timer.open(p);
+    return;
+  }
+  if(t.dataset.coretimer){
+    const p=CORE_PRESETS.find(x=>x.id===t.dataset.coretimer);
+    if(p) Timer.open(p);
+    return;
+  }
   if(t.id==="saveWorkout") return saveWorkout();
   if(t.id==="saveRun")     return saveRun();
   if(t.id==="saveWeight")  return saveWeight();
@@ -569,6 +641,143 @@ document.addEventListener("change", async (e)=>{
   if(e.target.id==="importFile" && e.target.files[0]){
     await DB.importFile(e.target.files[0]); flash("Restored"); render();
   }
+});
+
+// ---------- TREADMILL TIMER ENGINE ----------
+const Timer = (function(){
+  let cfg=null, tick=null, wake=null;
+  let phase="prepare", round=0, left=TIMER_PREP, paused=false, phaseTotal=TIMER_PREP;
+  const RING_C = 2*Math.PI*110;  // ring circumference (r=110)
+
+  const scr=()=>document.getElementById("timerScreen");
+  const el=id=>document.getElementById(id);
+
+  function beep(kind){
+    // short WebAudio tone — no audio file needed
+    try{
+      const ac=new (window.AudioContext||window.webkitAudioContext)();
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value = kind==="go"?880:(kind==="done"?1100:440);
+      g.gain.value=0.25;
+      o.start();
+      o.stop(ac.currentTime + (kind==="done"?0.5:0.18));
+    }catch(e){}
+    if(navigator.vibrate) navigator.vibrate(kind==="done"?[200,80,200]:120);
+  }
+
+  async function wakeOn(){
+    try{ if("wakeLock" in navigator) wake=await navigator.wakeLock.request("screen"); }catch(e){}
+  }
+  function wakeOff(){ try{ if(wake){ wake.release(); wake=null; } }catch(e){} }
+
+  async function fullscreen(){
+    const d=document.documentElement;
+    try{
+      if(!document.fullscreenElement){
+        if(d.requestFullscreen) await d.requestFullscreen();
+        else if(d.webkitRequestFullscreen) await d.webkitRequestFullscreen();
+      }
+    }catch(e){}
+  }
+  function exitFullscreen(){
+    try{ if(document.fullscreenElement) document.exitFullscreen(); }catch(e){}
+  }
+
+  function fmt(s){
+    if(s>=60){ const m=Math.floor(s/60); return m+":"+String(s%60).padStart(2,"0"); }
+    return String(s);
+  }
+
+  function paint(){
+    const s=scr();
+    s.className="timer-screen show ph-"+
+      (phase==="prepare"?"prepare":phase==="work"?"work":phase==="transition"?"trans":phase==="rest"?"rest":"done");
+    if(phase==="work" && left<=3) s.classList.add("ending");
+
+    if(phase==="done"){
+      el("tsPhase").textContent="Complete";
+      el("tsRound").textContent=cfg.rounds+" rounds done";
+      el("tsCount").textContent="✓";
+      el("tsMsg").textContent="Good work";
+      return;
+    }
+    el("tsPhase").textContent =
+      phase==="prepare"?"Get Ready":phase==="work"?cfg.workLabel:
+      phase==="transition"?"Slow Down":"Recover";
+    el("tsRound").textContent="Round "+Math.min(round+1,cfg.rounds)+" / "+cfg.rounds;
+    const c=el("tsCount");
+    c.textContent=fmt(left);
+    c.classList.toggle("small", left>=60);
+    el("tsMsg").textContent =
+      phase==="transition"?"Drop the belt speed":"";
+
+    // progress ring — empties as the interval counts down
+    const ring=el("tsRing");
+    if(ring){
+      const frac = phaseTotal>0 ? left/phaseTotal : 0;
+      ring.style.strokeDasharray = RING_C;
+      ring.style.strokeDashoffset = RING_C*(1-frac);
+    }
+  }
+
+  function step(){
+    if(paused) return;
+    if(left>1){ left--; paint(); 
+      if(phase==="work" && left<=3) beep("tick");
+      return;
+    }
+    // phase finished — advance
+    if(phase==="prepare"){
+      phase="work"; left=cfg.work; phaseTotal=cfg.work; beep("go"); paint(); return;
+    }
+    if(phase==="work"){
+      if(cfg.trans>0){ phase="transition"; left=cfg.trans; phaseTotal=cfg.trans; beep("tick"); paint(); return; }
+      toRest(); return;
+    }
+    if(phase==="transition"){ toRest(); return; }
+    if(phase==="rest"){
+      round++;
+      if(round>=cfg.rounds){ finish(); return; }
+      phase="work"; left=cfg.work; phaseTotal=cfg.work; beep("go"); paint(); return;
+    }
+  }
+  function toRest(){
+    phase="rest"; left=cfg.rest; phaseTotal=cfg.rest; beep("tick"); paint();
+  }
+  function finish(){
+    clearInterval(tick); tick=null;
+    phase="done"; beep("done"); paint();
+    wakeOff();
+    setTimeout(close, 2600);
+  }
+
+  async function open(preset){
+    cfg={...preset, workLabel: preset.work_label || "Run"};
+    phase="prepare"; round=0; left=TIMER_PREP; phaseTotal=TIMER_PREP; paused=false;
+    scr().classList.add("show");
+    paint();
+    await wakeOn();
+    await fullscreen();
+    tick=setInterval(step,1000);
+  }
+  function close(){
+    clearInterval(tick); tick=null;
+    wakeOff(); exitFullscreen();
+    scr().classList.remove("show");
+  }
+  function togglePause(){
+    paused=!paused;
+    el("tsPause").textContent=paused?"Resume":"Pause";
+  }
+
+  return { open, close, togglePause };
+})();
+
+// timer screen controls
+document.addEventListener("click",(e)=>{
+  if(e.target.id==="tsPause") Timer.togglePause();
+  if(e.target.id==="tsQuit") Timer.close();
 });
 
 // ---------- boot ----------
