@@ -381,7 +381,7 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 .quick-link {
   display: flex; align-items: center; gap: 11px;
   border: none; cursor: pointer; text-align: left;
-  width: 100%;
+  width: 100%; color: var(--text);
 }
 .ql-icon {
   flex: 0 0 auto;
@@ -391,5 +391,5 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 }
 .ql-icon svg { width: 26px; height: 26px; }
 .ql-text { min-width: 0; }
-.ql-title { font-weight: 700; font-size: 1rem; }
+.ql-title { font-weight: 700; font-size: 1rem; color: var(--text); }
 .ql-sub { color: var(--dim); font-size: 0.76rem; margin-top: 1px; }
