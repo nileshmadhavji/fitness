@@ -150,8 +150,6 @@ const FOODS = [
   {cat:"Breakfast",name:"Porridge (bowl)",cal:265,p:12,f:6.5,c:40,s:8,fe:2.8,zn:1.6,k:440},
   {cat:"Breakfast",name:"Kefir Drink",cal:140,p:9,f:4,c:15,s:14,fe:0.1,zn:0.9,k:390},
   {cat:"Breakfast",name:"Good Gut Yogurt",cal:120,p:8,f:3,c:14,s:12,fe:0.1,zn:0.8,k:300},
-  {cat:"Breakfast",name:"Boiled Eggs x2",cal:140,p:12,f:10,c:1,s:1,fe:1.8,zn:1.3,k:140},
-  {cat:"Breakfast",name:"Scrambled Eggs on Toast",cal:330,p:18,f:18,c:22,s:2,fe:2.6,zn:1.6,k:260},
   {cat:"Fruits",name:"Banana",cal:110,p:1,f:0,c:28,s:15,fe:0.3,zn:0.2,k:450},
   {cat:"Fruits",name:"Apple",cal:95,p:0.5,f:0,c:25,s:19,fe:0.2,zn:0.1,k:195},
   {cat:"Fruits",name:"Pear",cal:100,p:1,f:0,c:27,s:17,fe:0.3,zn:0.2,k:210},
@@ -200,10 +198,15 @@ const CORE_PRESETS = [
 ];
 const TIMER_PREP = 10;   // build-up before round 1
 
-const DEFAULT_BUDGET = 2100;
+const DEFAULT_BUDGET = 2100;          // cut target — editable in-app
+const GOAL_PROTEIN = 150;             // g — kept high to protect muscle in a deficit
+const GOAL_CARBS   = 190;             // g — flexed down to create the deficit
+const GOAL_FAT     = 65;              // g
+const GOAL_IRON    = 18;              // mg minimum
+const GOAL_POTASSIUM = 3500;          // mg minimum
 const START_KG = 82.1;
 const TARGET_KG = 72;
-const WATER_GOAL_ML = 2500;
+const WATER_GOAL_ML = 3000;
 const GLASS_ML = 250;            // one tap = 250 ml
 const GLASS_COUNT = WATER_GOAL_ML / GLASS_ML;
 
@@ -232,9 +235,31 @@ function kgToStone(kg){
 function lastFor(dayKey, exId){
   return DB.all("SELECT weight,reps FROM workout_log WHERE day=? AND ex_id=? ORDER BY id DESC LIMIT 1",[dayKey,exId])[0]||null;
 }
-function getBudget(){
-  const r = DB.all("SELECT value FROM settings WHERE key='budget'")[0];
-  return r ? parseInt(r.value) : DEFAULT_BUDGET;
+function getSetting(key, fallback){
+  const r = DB.all("SELECT value FROM settings WHERE key=?",[key])[0];
+  return r ? r.value : fallback;
+}
+async function setSetting(key, value){
+  const v = String(value);
+  await DB.run("INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=?",[key,v,v]);
+}
+function getBudget(){ return parseInt(getSetting('budget', DEFAULT_BUDGET)); }
+function goalProtein(){ return parseInt(getSetting('goal_protein', GOAL_PROTEIN)); }
+function goalCarbs(){ return parseInt(getSetting('goal_carbs', GOAL_CARBS)); }
+function goalFat(){ return parseInt(getSetting('goal_fat', GOAL_FAT)); }
+function waterGoalMl(){ return parseInt(getSetting('water_goal', WATER_GOAL_ML)); }
+function startKg(){ return parseFloat(getSetting('start_kg', START_KG)); }
+function targetKg(){ return parseFloat(getSetting('target_kg', TARGET_KG)); }
+function eatBackMode(){ return getSetting('eatback', 'off'); }  // off | half | full
+function burnedToday(){
+  return DB.all("SELECT COALESCE(SUM(calories),0) c FROM activity_log WHERE substr(logged_at,1,10)=?",[todayISO()])[0].c;
+}
+function effectiveBudget(){
+  const base=getBudget();
+  const mode=eatBackMode();
+  if(mode==='off') return base;
+  const burned=burnedToday();
+  return base + Math.round(burned * (mode==='full'?1:0.5));
 }
 function macrosToday(){
   const r = DB.all(`SELECT COALESCE(SUM(calories),0) cal, COALESCE(SUM(protein),0) p,
@@ -249,7 +274,7 @@ function waterToday(){
 }
 function latestWeight(){
   const r = DB.all("SELECT kg FROM weight_log ORDER BY logged_at DESC LIMIT 1")[0];
-  return r ? r.kg : START_KG;
+  return r ? r.kg : startKg();
 }
 function todaysPlanIndex(){
   const dow = new Date().getDay();
@@ -306,7 +331,7 @@ function ringSvg(size, stroke, pct, color){
 }
 function renderToday(){
   const pi = todaysPlanIndex();
-  const budget=getBudget();
+  const budget=effectiveBudget();
   const m=macrosToday();
   const used=m.cal, left=budget-used, calOver=left<0;
   const water=waterToday();
@@ -314,9 +339,18 @@ function renderToday(){
   const R=78, C=2*Math.PI*R;
   const dash=C*(calOver?1:Math.max(0,Math.min(1,used/budget)));
 
-  let h=`<div class="head">
-    <div class="date">${new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}</div>
-    <h1>Today</h1></div>`;
+  let h=`<div class="head head-with-action">
+    <div>
+      <div class="date">${new Date().toLocaleDateString(undefined,{weekday:"long",day:"numeric",month:"long"})}</div>
+      <h1>Today</h1>
+    </div>
+    <button class="gear-btn" data-tab="settings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="3.2"/>
+        <path d="M19.4 13.5a7.6 7.6 0 0 0 0-3l2-1.5-2-3.4-2.3 1a7.6 7.6 0 0 0-2.6-1.5L14 .9h-4l-.5 2.7A7.6 7.6 0 0 0 6.9 5l-2.3-1-2 3.4 2 1.5a7.6 7.6 0 0 0 0 3l-2 1.5 2 3.4 2.3-1a7.6 7.6 0 0 0 2.6 1.5l.5 2.7h4l.5-2.7a7.6 7.6 0 0 0 2.6-1.5l2.3 1 2-3.4z"/>
+      </svg>
+    </button>
+  </div>`;
 
   // --- FOOD: calorie ring + macros, the headline of the day ---
   h+=`<div class="dash-card" data-goto="food" style="cursor:pointer">
@@ -337,9 +371,9 @@ function renderToday(){
       <div class="ring-sub"><b>${used}</b> eaten · <b>${budget}</b> budget</div>
     </div>
     <div class="macro-row" style="margin-top:10px">
-      <div class="macro m-p"><div class="m-val">${Math.round(m.p)}g</div><div class="m-lbl">Protein</div></div>
-      <div class="macro m-c"><div class="m-val">${Math.round(m.c)}g</div><div class="m-lbl">Carbs</div></div>
-      <div class="macro m-f"><div class="m-val">${Math.round(m.f)}g</div><div class="m-lbl">Fat</div></div>
+      <div class="macro m-p ${m.p>=goalProtein()?"hit":""}"><div class="m-val">${Math.round(m.p)}<span class="m-goal">/${goalProtein()}</span></div><div class="m-lbl">Protein</div></div>
+      <div class="macro m-c ${m.c>=goalCarbs()?"hit":""}"><div class="m-val">${Math.round(m.c)}<span class="m-goal">/${goalCarbs()}</span></div><div class="m-lbl">Carbs</div></div>
+      <div class="macro m-f ${m.f>=goalFat()?"hit":""}"><div class="m-val">${Math.round(m.f)}<span class="m-goal">/${goalFat()}</span></div><div class="m-lbl">Fat</div></div>
       <div class="macro m-s"><div class="m-val">${Math.round(m.s)}g</div><div class="m-lbl">Sugar</div></div>
     </div>
   </div>`;
@@ -376,7 +410,7 @@ function renderToday(){
     <div class="dash-card dash-weight" data-goto="weight" style="cursor:pointer">
       <div class="dc-head"><span class="dc-title">Weight</span></div>
       <div class="dwt-big">${lw.toFixed(1)} kg</div>
-      <div class="dwt-sub">${(START_KG-lw)>=0?"−":"+"}${Math.abs(START_KG-lw).toFixed(1)} kg · ${Math.max(0,lw-TARGET_KG).toFixed(1)} to go</div>
+      <div class="dwt-sub">${(startKg()-lw)>=0?"−":"+"}${Math.abs(startKg()-lw).toFixed(1)} kg · ${Math.max(0,lw-targetKg()).toFixed(1)} to go</div>
     </div>
     <div class="dash-card" data-goto="weight" style="cursor:pointer">
       <div class="dc-head"><span class="dc-title">Water</span></div>
@@ -392,14 +426,16 @@ function renderToday(){
 
 // ---------- water block (shared: dashboard + food) ----------
 function waterBlock(ml){
+  const goalMl=waterGoalMl();
+  const glassCount=Math.round(goalMl/GLASS_ML);
   const glasses=Math.round(ml/GLASS_ML);
   let g="";
-  for(let i=0;i<GLASS_COUNT;i++){
+  for(let i=0;i<glassCount;i++){
     g+=`<button class="glass ${i<glasses?"full":""}" data-water="${i}"></button>`;
   }
   return `<div class="water-stat">
       <span class="ws-big">${(ml/1000).toFixed(2)}L</span>
-      <span class="ws-goal">/ ${(WATER_GOAL_ML/1000).toFixed(1)}L goal</span>
+      <span class="ws-goal">/ ${(goalMl/1000).toFixed(1)}L goal</span>
     </div>
     <div class="water-row">${g}</div>`;
 }
@@ -512,9 +548,48 @@ function renderRun(){
         <button class="x" data-del-run="${r.id}">✕</button>
       </div>`;
     });
+
+    // --- activity / calorie burn ---
+    const burned=burnedToday();
+    const mode=eatBackMode();
+    h+=`<div class="cat-head" style="margin-top:22px">Activity Burn</div>`;
+    h+=`<div class="card">
+      <div class="set-note">Burned today: <b style="color:var(--exercise)">${burned} cal</b> ·
+        ${mode==='off'?'not added to budget':mode==='half'?'half added to budget':'added to budget'}
+        <button class="link-btn" data-tab="settings">change</button></div>
+      <div class="burn-grid">
+        <button class="burn-btn" data-burn="Walk 30min" data-bcal="150">Walk 30min<span>150</span></button>
+        <button class="burn-btn" data-burn="Walk 1hr" data-bcal="300">Walk 1hr<span>300</span></button>
+        <button class="burn-btn" data-burn="7k Walk" data-bcal="500">7k Walk<span>500</span></button>
+        <button class="burn-btn" data-burn="Treadmill session" data-bcal="350">Treadmill<span>350</span></button>
+      </div>
+      <div class="field-row" style="margin-top:8px">
+        <div class="field"><label>Custom — what</label><input type="text" id="burnName" placeholder="cycle"></div>
+        <div class="field field-date"><label>Cals</label><input type="number" inputmode="numeric" id="burnCal" placeholder="250"></div>
+      </div>
+      <button class="btn btn-sub" id="saveBurn">Log Custom Burn</button>
+    </div>`;
+    const acts=DB.all("SELECT * FROM activity_log WHERE substr(logged_at,1,10)=? ORDER BY id DESC",[todayISO()]);
+    if(acts.length){
+      h+=`<div class="cat-head">Logged today</div>`;
+      acts.forEach(a=>{
+        h+=`<div class="entry">
+          <span class="entry-main"><span class="entry-name">${esc(a.name)}</span></span>
+          <span class="entry-val">${a.calories} cal</span>
+          <button class="x" data-del-act="${a.id}">✕</button>
+        </div>`;
+      });
+    }
   }
   h+=toolsHTML();
   $app.innerHTML=h;
+}
+
+async function logBurn(name, cal){
+  await DB.run("INSERT INTO activity_log (name,calories,logged_at) VALUES (?,?,?)",
+    [name,cal,new Date().toISOString()]);
+  flash(`+${cal} cal burned`);
+  renderRun();
 }
 
 async function saveRun(){
@@ -530,9 +605,9 @@ async function saveRun(){
 // ---------- WEIGHT ----------
 function renderWeight(){
   const rows=DB.all("SELECT * FROM weight_log ORDER BY logged_at ASC");
-  const latest=rows.length?rows[rows.length-1].kg:START_KG;
-  const first=rows.length?rows[0].kg:START_KG;
-  const lost=first-latest, toGo=latest-TARGET_KG;
+  const latest=rows.length?rows[rows.length-1].kg:startKg();
+  const first=rows.length?rows[0].kg:startKg();
+  const lost=first-latest, toGo=latest-targetKg();
 
   let h=`<div class="head"><div class="date">Progress</div><h1>Weight</h1></div>
     <div class="stat">
@@ -541,11 +616,11 @@ function renderWeight(){
     </div>
     <div class="progress-row">
       <div class="p-item"><div class="p-val p-lost">${lost>=0?"−":"+"}${Math.abs(lost).toFixed(1)}</div><div class="p-lbl">kg ${lost>=0?"lost":"gained"}</div></div>
-      <div class="p-item"><div class="p-val">${TARGET_KG}</div><div class="p-lbl">target kg</div></div>
+      <div class="p-item"><div class="p-val">${targetKg()}</div><div class="p-lbl">target kg</div></div>
       <div class="p-item"><div class="p-val p-togo">${toGo>0?toGo.toFixed(1):"0"}</div><div class="p-lbl">kg to go</div></div>
     </div>`;
   h+=lineChart(rows.map(r=>({label:fmtDate(r.logged_at),value:r.kg})),
-    {targetValue:TARGET_KG,targetLabel:"target "+TARGET_KG+"kg",
+    {targetValue:targetKg(),targetLabel:"target "+targetKg()+"kg",
      emptyMsg:"Log at least 2 weigh-ins to see your trend chart."});
   h+=`<div class="card">
     <div class="field-row">
@@ -585,7 +660,7 @@ async function saveWeight(){
 
 // ---------- FOOD ----------
 function renderFood(){
-  const budget=getBudget();
+  const budget=effectiveBudget();
   const eaten=DB.all("SELECT * FROM food_log WHERE substr(logged_at,1,10)=? ORDER BY id DESC",[todayISO()]);
   const m=macrosToday();
   const used=m.cal, left=budget-used, over=left<0;
@@ -606,15 +681,15 @@ function renderFood(){
     </div>
 
     <div class="macro-row">
-      <div class="macro m-p"><div class="m-val">${Math.round(m.p)}g</div><div class="m-lbl">Protein</div></div>
-      <div class="macro m-c"><div class="m-val">${Math.round(m.c)}g</div><div class="m-lbl">Carbs</div></div>
-      <div class="macro m-f"><div class="m-val">${Math.round(m.f)}g</div><div class="m-lbl">Fat</div></div>
+      <div class="macro m-p ${m.p>=goalProtein()?"hit":""}"><div class="m-val">${Math.round(m.p)}<span class="m-goal">/${goalProtein()}</span></div><div class="m-lbl">Protein</div></div>
+      <div class="macro m-c ${m.c>=goalCarbs()?"hit":""}"><div class="m-val">${Math.round(m.c)}<span class="m-goal">/${goalCarbs()}</span></div><div class="m-lbl">Carbs</div></div>
+      <div class="macro m-f ${m.f>=goalFat()?"hit":""}"><div class="m-val">${Math.round(m.f)}<span class="m-goal">/${goalFat()}</span></div><div class="m-lbl">Fat</div></div>
       <div class="macro m-s"><div class="m-val">${Math.round(m.s)}g</div><div class="m-lbl">Sugar</div></div>
     </div>
     <div class="micro-line">
-      <span>Iron <b>${m.fe.toFixed(1)}mg</b></span>
-      <span>Zinc <b>${m.zn.toFixed(1)}mg</b></span>
-      <span>Potassium <b>${Math.round(m.k)}mg</b></span>
+      <span class="${m.fe>=GOAL_IRON?"micro-hit":""}">Iron <b>${m.fe.toFixed(1)}</b>/${GOAL_IRON}mg</span>
+      <span>Zinc <b>${m.zn.toFixed(1)}</b>mg</span>
+      <span class="${m.k>=GOAL_POTASSIUM?"micro-hit":""}">K <b>${Math.round(m.k)}</b>/${GOAL_POTASSIUM}mg</span>
     </div>`;
 
   h+=`<div class="dash-card"><div class="dc-head"><span class="dc-title">Water</span></div>${waterBlock(waterToday())}</div>`;
@@ -667,8 +742,62 @@ function toolsHTML(){
     <input type="file" id="importFile" accept=".db,.sqlite" hidden>
     <div class="tools-note">Saved on this device. Backup to keep a copy or move phones.</div>`;
 }
+function renderSettings(){
+  const eb=eatBackMode();
+  let h=`<div class="head">
+    <div class="date">Preferences</div>
+    <h1>Settings</h1></div>`;
+
+  // --- daily targets ---
+  h+=`<div class="cat-head">Daily Targets</div>
+  <div class="card">
+    <div class="set-row"><span class="set-lbl">Calories</span>
+      <input type="number" inputmode="numeric" id="set-budget" value="${getBudget()}"></div>
+    <div class="set-row"><span class="set-lbl">Protein (g)</span>
+      <input type="number" inputmode="numeric" id="set-protein" value="${goalProtein()}"></div>
+    <div class="set-row"><span class="set-lbl">Carbs (g)</span>
+      <input type="number" inputmode="numeric" id="set-carbs" value="${goalCarbs()}"></div>
+    <div class="set-row"><span class="set-lbl">Fat (g)</span>
+      <input type="number" inputmode="numeric" id="set-fat" value="${goalFat()}"></div>
+    <div class="set-row"><span class="set-lbl">Water goal (L)</span>
+      <input type="number" inputmode="decimal" step="0.5" id="set-water" value="${(waterGoalMl()/1000).toFixed(1)}"></div>
+  </div>`;
+
+  // --- eat-back mode ---
+  h+=`<div class="cat-head">Exercise Calories</div>
+  <div class="card">
+    <div class="set-note">When you log a walk or session on the Run tab, should those burned calories be added back to your food budget?</div>
+    <div class="seg">
+      <button class="seg-btn ${eb==='off'?'on':''}" data-eatback="off">Don't eat back</button>
+      <button class="seg-btn ${eb==='half'?'on':''}" data-eatback="half">Half</button>
+      <button class="seg-btn ${eb==='full'?'on':''}" data-eatback="full">Full</button>
+    </div>
+    <div class="set-note" style="margin-top:8px">${
+      eb==='off' ? "Burns are logged but your budget stays fixed — the deficit just gets bigger. Best for leaning out."
+      : eb==='half' ? "Half of burned calories are added to today's budget — a hedge against overestimated burns."
+      : "All burned calories are added to today's budget."
+    }</div>
+  </div>`;
+
+  // --- weight goals ---
+  h+=`<div class="cat-head">Weight</div>
+  <div class="card">
+    <div class="set-row"><span class="set-lbl">Start (kg)</span>
+      <input type="number" inputmode="decimal" step="0.1" id="set-startkg" value="${getSetting('start_kg',START_KG)}"></div>
+    <div class="set-row"><span class="set-lbl">Target (kg)</span>
+      <input type="number" inputmode="decimal" step="0.1" id="set-targetkg" value="${getSetting('target_kg',TARGET_KG)}"></div>
+  </div>`;
+
+  h+=`<button class="btn btn-go" id="saveSettings">Save Settings</button>`;
+
+  // --- data ---
+  h+=`<div class="cat-head">Your Data</div>` + toolsHTML();
+  $app.innerHTML=h;
+}
+
 function render(){
   if(activeTab==="today") renderToday();
+  else if(activeTab==="settings") renderSettings();
   else if(activeTab==="workout") renderWorkout();
   else if(activeTab==="run") renderRun();
   else if(activeTab==="weight") renderWeight();
@@ -712,6 +841,14 @@ document.addEventListener("click", async (e)=>{
   }
   if(t.id==="saveWorkout") return saveWorkout();
   if(t.id==="saveRun")     return saveRun();
+  if(t.dataset.burn) return logBurn(t.dataset.burn, +t.dataset.bcal);
+  if(t.id==="saveBurn"){
+    const n=document.getElementById("burnName").value.trim();
+    const c=document.getElementById("burnCal").value.trim();
+    if(!c||isNaN(parseInt(c))){ flash("Enter calories"); return; }
+    return logBurn(n||"Activity", parseInt(c));
+  }
+  if(t.dataset.delAct){ await DB.run("DELETE FROM activity_log WHERE id=?",[+t.dataset.delAct]); renderRun(); return; }
   if(t.id==="saveWeight")  return saveWeight();
 
   if(t.dataset.food) return eatFood(t.dataset.food);
@@ -719,13 +856,26 @@ document.addEventListener("click", async (e)=>{
   if(t.dataset.delRun){ await DB.run("DELETE FROM run_log WHERE id=?",[+t.dataset.delRun]); renderRun(); return; }
   if(t.dataset.delWeight){ await DB.run("DELETE FROM weight_log WHERE id=?",[+t.dataset.delWeight]); renderWeight(); return; }
 
-  if(t.id==="editBudget"){
-    const v=prompt("Daily calorie budget",getBudget());
-    if(v && !isNaN(parseInt(v))){
-      const n=String(parseInt(v));
-      await DB.run("INSERT INTO settings (key,value) VALUES ('budget',?) ON CONFLICT(key) DO UPDATE SET value=?",[n,n]);
-      renderFood();
-    }
+  if(t.id==="editBudget"){ activeTab="settings"; render(); scrollTo(0,0); return; }
+
+  if(t.dataset.eatback){
+    await setSetting('eatback', t.dataset.eatback);
+    renderSettings();
+    return;
+  }
+  if(t.id==="saveSettings"){
+    const num=(id)=>document.getElementById(id).value.trim();
+    const b=num('set-budget'), p=num('set-protein'), c=num('set-carbs'),
+          f=num('set-fat'), w=num('set-water'),
+          sk=num('set-startkg'), tk=num('set-targetkg');
+    if(b) await setSetting('budget', parseInt(b));
+    if(p) await setSetting('goal_protein', parseInt(p));
+    if(c) await setSetting('goal_carbs', parseInt(c));
+    if(f) await setSetting('goal_fat', parseInt(f));
+    if(w) await setSetting('water_goal', Math.round(parseFloat(w)*1000));
+    if(sk) await setSetting('start_kg', parseFloat(sk));
+    if(tk) await setSetting('target_kg', parseFloat(tk));
+    flash("Settings saved");
     return;
   }
   if(t.id==="exportDb"){ DB.exportFile(); flash("gym.db saved"); return; }
