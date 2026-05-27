@@ -142,8 +142,33 @@ const FOODS = [
   {cat:"Supplements",name:"Bassets Multivitamin",cal:8,p:0,f:0,c:2,s:2,fe:0.2,zn:0.1,k:5},
   {cat:"Supplements",name:"Creatine (9.5g)",cal:0,p:0,f:0,c:0,s:0,fe:0,zn:0,k:0},
   {cat:"Supplements",name:"BCAA (9.5g)",cal:10,p:2,f:0,c:0,s:0,fe:0,zn:0,k:10},
+  {cat:"Breakfast",name:"Toast with Butter (1 slice)",cal:130,p:3,f:6,c:16,s:1,fe:0.8,zn:0.3,k:55},
+  {cat:"Breakfast",name:"Toast with Butter (2 slices)",cal:260,p:6,f:12,c:32,s:2,fe:1.6,zn:0.6,k:110},
+  {cat:"Breakfast",name:"Cornflakes (bowl)",cal:265,p:8,f:3,c:49,s:11,fe:6.0,zn:1.2,k:330},
+  {cat:"Breakfast",name:"Coco Pops (bowl)",cal:270,p:8,f:4,c:50,s:24,fe:6.5,zn:1.2,k:340},
+  {cat:"Breakfast",name:"Weetabix x2 (bowl)",cal:210,p:10,f:3.5,c:32,s:9,fe:5.0,zn:1.6,k:430},
+  {cat:"Breakfast",name:"Porridge (bowl)",cal:265,p:12,f:6.5,c:40,s:8,fe:2.8,zn:1.6,k:440},
+  {cat:"Breakfast",name:"Kefir Drink",cal:140,p:9,f:4,c:15,s:14,fe:0.1,zn:0.9,k:390},
+  {cat:"Breakfast",name:"Good Gut Yogurt",cal:120,p:8,f:3,c:14,s:12,fe:0.1,zn:0.8,k:300},
+  {cat:"Breakfast",name:"Boiled Eggs x2",cal:140,p:12,f:10,c:1,s:1,fe:1.8,zn:1.3,k:140},
+  {cat:"Breakfast",name:"Scrambled Eggs on Toast",cal:330,p:18,f:18,c:22,s:2,fe:2.6,zn:1.6,k:260},
+  {cat:"Fruits",name:"Banana",cal:110,p:1,f:0,c:28,s:15,fe:0.3,zn:0.2,k:450},
+  {cat:"Fruits",name:"Apple",cal:95,p:0.5,f:0,c:25,s:19,fe:0.2,zn:0.1,k:195},
+  {cat:"Fruits",name:"Pear",cal:100,p:1,f:0,c:27,s:17,fe:0.3,zn:0.2,k:210},
+  {cat:"Fruits",name:"Orange",cal:65,p:1,f:0,c:16,s:12,fe:0.1,zn:0.1,k:240},
+  {cat:"Fruits",name:"Satsuma / Clementine",cal:35,p:0.7,f:0,c:9,s:7,fe:0.1,zn:0.1,k:130},
+  {cat:"Fruits",name:"Grapes (small bunch, 100g)",cal:70,p:0.7,f:0,c:18,s:16,fe:0.4,zn:0.1,k:190},
+  {cat:"Fruits",name:"Strawberries (100g)",cal:33,p:0.7,f:0,c:8,s:5,fe:0.4,zn:0.1,k:150},
+  {cat:"Fruits",name:"Blueberries (100g)",cal:57,p:0.7,f:0,c:14,s:10,fe:0.3,zn:0.2,k:77},
+  {cat:"Fruits",name:"Mixed Berries (80g)",cal:40,p:0.6,f:0,c:9,s:6,fe:0.3,zn:0.1,k:100},
+  {cat:"Fruits",name:"Mango (100g)",cal:60,p:0.8,f:0,c:15,s:14,fe:0.2,zn:0.1,k:170},
+  {cat:"Fruits",name:"Kiwi",cal:42,p:0.8,f:0,c:10,s:6,fe:0.2,zn:0.1,k:215},
+  {cat:"Fruits",name:"Pineapple (100g)",cal:50,p:0.5,f:0,c:13,s:10,fe:0.3,zn:0.1,k:110},
+  {cat:"Fruits",name:"Watermelon (100g)",cal:30,p:0.6,f:0,c:8,s:6,fe:0.2,zn:0.1,k:112},
+  {cat:"Fruits",name:"Pomegranate (half)",cal:70,p:1.5,f:1,c:16,s:12,fe:0.2,zn:0.2,k:210},
+  {cat:"Fruits",name:"Dates x3",cal:60,p:0.5,f:0,c:16,s:14,fe:0.3,zn:0.1,k:140},
 ];
-const FOOD_CATS = ["Breakfast","Lunch","Dinner","Drinks","Snacks","Supplements"];
+const FOOD_CATS = ["Breakfast","Lunch","Dinner","Drinks","Fruits","Snacks","Supplements"];
 
 // ---- treadmill interval timer presets ----
 // trans = belt slowdown window (its own phase between work and rest)
