@@ -55,6 +55,10 @@ const DB = (() => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       ml INTEGER NOT NULL, logged_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS activity_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, calories INTEGER NOT NULL, logged_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY, value TEXT
     );
