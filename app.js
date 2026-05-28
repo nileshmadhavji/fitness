@@ -470,16 +470,17 @@ function renderToday(){
 // ---------- water block (shared: dashboard + food) ----------
 function waterBlock(ml){
   const goalMl=waterGoalMl();
-  const pct=Math.min(100, Math.round(ml/goalMl*100));
-  return `<div class="water-slim">
-      <button class="water-pm" data-water-add="-250" aria-label="less water">−</button>
-      <div class="water-mid">
-        <div class="water-amt"><span class="wa-big">${(ml/1000).toFixed(2)}</span><span class="wa-lbl">L</span>
-          <span class="wa-goal">/ ${(goalMl/1000).toFixed(1)}L</span></div>
-        <div class="water-bar"><span style="width:${pct}%"></span></div>
-      </div>
-      <button class="water-pm" data-water-add="250" aria-label="more water">+</button>
-    </div>`;
+  const glassCount=Math.round(goalMl/GLASS_ML);
+  const glasses=Math.round(ml/GLASS_ML);
+  let g="";
+  for(let i=0;i<glassCount;i++){
+    g+=`<button class="glass ${i<glasses?"full":""}" data-water="${i}"></button>`;
+  }
+  return `<div class="water-stat">
+      <span class="ws-big">${(ml/1000).toFixed(2)}L</span>
+      <span class="ws-goal">/ ${(goalMl/1000).toFixed(1)}L goal</span>
+    </div>
+    <div class="water-row">${g}</div>`;
 }
 async function adjustWater(deltaMl){
   const t = todayISO();
@@ -712,19 +713,10 @@ async function saveWeight(){
 
 // ---------- FOOD ----------
 function foodRowHTML(f){
-  const pc=f.p*4, cc=f.c*4, fc=f.f*9;
-  const tot=Math.max(pc+cc+fc,1);
-  const pPct=Math.round(pc/tot*100), cPct=Math.round(cc/tot*100);
-  const fPct=100-pPct-cPct;
   const dense=f.cal>0 && (f.p/f.cal)>=0.10;
   return `<button class="food" data-food="${esc(f.name)}">
     <div class="food-main">
       <div class="food-name">${esc(f.name)}${f.custom?'<span class="custom-pill">mine</span>':""}</div>
-      <div class="food-bar">
-        <span style="width:${pPct}%" class="fb-p"></span>
-        <span style="width:${cPct}%" class="fb-c"></span>
-        <span style="width:${fPct}%" class="fb-f"></span>
-      </div>
       <div class="food-macro">
         <b class="fm-p ${dense?"lean":""}">${f.p}g protein</b>
         <span>${f.c}c · ${f.f}f · ${f.s}sug</span>
@@ -797,11 +789,14 @@ function renderFood(){
     h+=`</div>`;
   }
 
-  // --- Add Food form (toggleable) ---
+  // --- Add Food form (modal overlay) ---
   if(showAddFood){
     const ef=editingFood||{};
-    h+=`<div class="cat-head">${editingFood?"Edit Food":"Add New Food"}</div>
-    <div class="card add-food-card">
+    h+=`<div class="modal-backdrop" data-toggle-add></div>
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-head"><h2>${editingFood?"Edit Food":"Add New Food"}</h2>
+        <button class="modal-x" data-toggle-add>✕</button></div>
+      <div class="add-food-card">
       <div class="set-note" style="margin-bottom:8px">Paste from ChatGPT, a label, or a recipe. Fill what you know — leave blank for 0.</div>
       <div class="field"><label>Name</label><input id="nf-name" type="text" value="${esc(ef.name||"")}" placeholder="e.g. Aloo Paratha"></div>
       <div class="field"><label>Category</label>
@@ -828,6 +823,7 @@ function renderFood(){
       <div class="row-2">
         <button class="btn btn-sub" data-toggle-add>Cancel</button>
         <button class="btn btn-go" id="saveCustomFood">${editingFood?"Save Changes":"Add Food"}</button>
+      </div>
       </div>
     </div>`;
   }
@@ -1026,8 +1022,10 @@ document.addEventListener("click", async (e)=>{
   if(t.dataset.day!==undefined){ activeDay=+t.dataset.day; renderWorkout(); scrollTo(0,0); return; }
   if(t.dataset.runsub){ runSubTab=t.dataset.runsub; renderRun(); scrollTo(0,0); return; }
 
-  if(t.dataset.waterAdd!==undefined){
-    return adjustWater(parseInt(t.dataset.waterAdd));
+  if(t.dataset.water!==undefined){
+    await setWater(+t.dataset.water);
+    render();
+    return;
   }
 
   if(t.dataset.timer){

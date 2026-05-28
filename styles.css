@@ -600,3 +600,36 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
   background-position: right 10px center;
   padding-right: 26px;
 }
+
+/* ---- modal overlay (Add Food, etc.) ---- */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(0,0,0,0.65);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.modal-card {
+  position: fixed; z-index: 91;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px); max-width: 520px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 18px; padding: 18px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+.modal-head {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px;
+}
+.modal-head h2 {
+  font-size: 1.2rem; font-weight: 800; margin: 0;
+}
+.modal-x {
+  -webkit-appearance: none; appearance: none;
+  background: var(--surface2); border: none; cursor: pointer;
+  color: var(--text); width: 30px; height: 30px;
+  border-radius: 50%; font-size: 0.85rem;
+  display: flex; align-items: center; justify-content: center;
+}
