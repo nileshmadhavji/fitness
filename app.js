@@ -203,6 +203,7 @@ const GOAL_PROTEIN = 150;             // g — kept high to protect muscle in a 
 const GOAL_CARBS   = 190;             // g — flexed down to create the deficit
 const GOAL_FAT     = 65;              // g
 const GOAL_IRON    = 18;              // mg minimum
+const GOAL_ZINC    = 11;              // mg minimum (vegetarian-leaning, training)
 const GOAL_POTASSIUM = 3500;          // mg minimum
 const START_KG = 82.1;
 const TARGET_KG = 72;
@@ -213,6 +214,10 @@ const GLASS_COUNT = WATER_GOAL_ML / GLASS_ML;
 let activeTab = "today";
 let activeDay = 0;
 let runSubTab = "timer";  // "timer" | "log"
+let foodSearch = "";
+let foodPortion = {};       // {foodName: multiplier}, defaults to 1
+let showAddFood = false;
+let editingFood = null;     // for editing a custom food
 const $app = document.getElementById("app");
 
 function flash(msg){
@@ -248,6 +253,7 @@ function goalProtein(){ return parseInt(getSetting('goal_protein', GOAL_PROTEIN)
 function goalCarbs(){ return parseInt(getSetting('goal_carbs', GOAL_CARBS)); }
 function goalFat(){ return parseInt(getSetting('goal_fat', GOAL_FAT)); }
 function waterGoalMl(){ return parseInt(getSetting('water_goal', WATER_GOAL_ML)); }
+function goalZinc(){ return parseInt(getSetting('goal_zinc', GOAL_ZINC)); }
 function startKg(){ return parseFloat(getSetting('start_kg', START_KG)); }
 function targetKg(){ return parseFloat(getSetting('target_kg', TARGET_KG)); }
 function eatBackMode(){ return getSetting('eatback', 'off'); }  // off | half | full
@@ -267,6 +273,42 @@ function macrosToday(){
     COALESCE(SUM(iron),0) fe, COALESCE(SUM(zinc),0) zn, COALESCE(SUM(potassium),0) k
     FROM food_log WHERE substr(logged_at,1,10)=?`,[todayISO()])[0];
   return r;
+}
+
+function customFoods(){
+  return DB.all("SELECT * FROM custom_foods ORDER BY id DESC").map(r=>({
+    cat: r.category, name: r.name, cal: r.calories,
+    p: r.protein, c: r.carbs, f: r.fat, s: r.sugar,
+    fe: r.iron, zn: r.zinc, k: r.potassium,
+    custom: true, id: r.id
+  }));
+}
+function allFoods(){
+  // user's custom foods first within each category, then built-ins
+  const cust = customFoods();
+  const map = new Map();
+  cust.forEach(f => map.set(f.name.toLowerCase(), f));
+  FOODS.forEach(f => { if(!map.has(f.name.toLowerCase())) map.set(f.name.toLowerCase(), f); });
+  return [...map.values()];
+}
+function recentFoods(limit=6){
+  // most-eaten in last 14 days, by name, joined back to current food data
+  const rows = DB.all(`
+    SELECT name, COUNT(*) c FROM food_log
+    WHERE date(substr(logged_at,1,10)) >= date('now','-14 days')
+    GROUP BY name ORDER BY c DESC, MAX(logged_at) DESC LIMIT ?`,[limit]);
+  const all = allFoods();
+  const byName = new Map(all.map(f=>[f.name.toLowerCase(), f]));
+  return rows.map(r => byName.get(r.name.toLowerCase())).filter(Boolean);
+}
+function filterFoods(list, q){
+  if(!q) return list;
+  q = q.toLowerCase().trim();
+  return list.filter(f => f.name.toLowerCase().includes(q));
+}
+function portionOf(name){ return foodPortion[name] || 1; }
+function setPortion(name, mult){
+  if(mult===1) delete foodPortion[name]; else foodPortion[name]=mult;
 }
 function caloriesToday(){ return macrosToday().cal; }
 function waterToday(){
@@ -659,6 +701,39 @@ async function saveWeight(){
 }
 
 // ---------- FOOD ----------
+function foodRowHTML(f){
+  // colour bar
+  const pc=f.p*4, cc=f.c*4, fc=f.f*9;
+  const tot=Math.max(pc+cc+fc,1);
+  const pPct=Math.round(pc/tot*100), cPct=Math.round(cc/tot*100);
+  const fPct=100-pPct-cPct;
+  const dense=f.cal>0 && (f.p/f.cal)>=0.10;
+  const mult=portionOf(f.name);
+  const shownCal=Math.round(f.cal*mult);
+  const portionLabel=mult===1?"":`<span class="portion-pill">${mult}×</span>`;
+  return `<div class="food" data-food="${esc(f.name)}">
+    <div class="food-main">
+      <div class="food-name">${esc(f.name)} ${portionLabel}${f.custom?'<span class="custom-pill">mine</span>':""}</div>
+      <div class="food-bar">
+        <span style="width:${pPct}%" class="fb-p"></span>
+        <span style="width:${cPct}%" class="fb-c"></span>
+        <span style="width:${fPct}%" class="fb-f"></span>
+      </div>
+      <div class="food-macro">
+        <b class="fm-p ${dense?"lean":""}">${Math.round(f.p*mult*10)/10}g protein</b>
+        <span>${Math.round(f.c*mult*10)/10}c · ${Math.round(f.f*mult*10)/10}f · ${Math.round(f.s*mult*10)/10}sug</span>
+      </div>
+      <div class="portion-row">
+        <button class="port-btn ${mult===0.5?"on":""}" data-port="${esc(f.name)}|0.5">½</button>
+        <button class="port-btn ${mult===1?"on":""}" data-port="${esc(f.name)}|1">1</button>
+        <button class="port-btn ${mult===1.5?"on":""}" data-port="${esc(f.name)}|1.5">1½</button>
+        <button class="port-btn ${mult===2?"on":""}" data-port="${esc(f.name)}|2">2</button>
+        <button class="port-btn add-btn" data-add-food="${esc(f.name)}">+ Log ${shownCal}</button>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderFood(){
   const budget=effectiveBudget();
   const eaten=DB.all("SELECT * FROM food_log WHERE substr(logged_at,1,10)=? ORDER BY id DESC",[todayISO()]);
@@ -667,7 +742,14 @@ function renderFood(){
   const R=88,C=2*Math.PI*R;
   const dash=C*(over?1:Math.max(0,Math.min(1,used/budget)));
 
-  let h=`<div class="head"><div class="date">${new Date().toLocaleDateString(undefined,{weekday:"long"})}</div><h1>Food</h1></div>
+  let h=`<div class="head head-with-action">
+    <div><div class="date">${new Date().toLocaleDateString(undefined,{weekday:"long"})}</div><h1>Food</h1></div>
+    <button class="gear-btn" data-toggle-add aria-label="Add food">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+        <path d="M12 5v14M5 12h14"/>
+      </svg>
+    </button>
+  </div>
     <div class="ring-card">
       <div class="ring-wrap">
         <svg width="210" height="210" viewBox="0 0 210 210">
@@ -688,14 +770,16 @@ function renderFood(){
     </div>
     <div class="micro-line">
       <span class="${m.fe>=GOAL_IRON?"micro-hit":""}">Iron <b>${m.fe.toFixed(1)}</b>/${GOAL_IRON}mg</span>
-      <span>Zinc <b>${m.zn.toFixed(1)}</b>mg</span>
+      <span class="${m.zn>=goalZinc()?"micro-hit":""}">Zinc <b>${m.zn.toFixed(1)}</b>/${goalZinc()}mg</span>
       <span class="${m.k>=GOAL_POTASSIUM?"micro-hit":""}">K <b>${Math.round(m.k)}</b>/${GOAL_POTASSIUM}mg</span>
     </div>`;
 
   h+=`<div class="dash-card"><div class="dc-head"><span class="dc-title">Water</span></div>${waterBlock(waterToday())}</div>`;
 
+  // --- Eaten today: clipped + scrollable ---
   if(eaten.length){
-    h+=`<div class="cat-head">Eaten today</div>`;
+    h+=`<div class="cat-head">Eaten today <span style="color:var(--dim);font-weight:600">· ${eaten.length}</span></div>
+    <div class="eaten-scroll">`;
     eaten.forEach(e=>{
       h+=`<div class="entry">
         <span class="entry-main"><span class="entry-name">${esc(e.name)}</span>
@@ -704,33 +788,115 @@ function renderFood(){
         <button class="x" data-del-food="${e.id}">✕</button>
       </div>`;
     });
-  }
-  h+=`<div class="divider"></div>`;
-  FOOD_CATS.forEach(cat=>{
-    const items=FOODS.filter(f=>f.cat===cat);
-    h+=`<div class="cat-head">${cat} <span style="color:var(--dim);font-weight:600">· ${items.length}</span></div>`;
-    h+=`<div class="food-scroll">`;
-    items.forEach(f=>{
-      h+=`<button class="food" data-food="${esc(f.name)}">
-        <div class="food-main">
-          <div class="food-name">${esc(f.name)}</div>
-          <div class="food-macro">${f.p}p · ${f.c}c · ${f.f}f · ${f.s} sugar</div>
-        </div>
-        <div class="food-cal">${f.cal}<span> cal</span></div>
-      </button>`;
-    });
     h+=`</div>`;
-  });
+  }
+
+  // --- Add Food form (toggleable) ---
+  if(showAddFood){
+    const ef=editingFood||{};
+    h+=`<div class="cat-head">${editingFood?"Edit Food":"Add New Food"}</div>
+    <div class="card add-food-card">
+      <div class="set-note" style="margin-bottom:8px">Paste from ChatGPT, a label, or a recipe. Fill what you know — leave blank for 0.</div>
+      <div class="field"><label>Name</label><input id="nf-name" type="text" value="${esc(ef.name||"")}" placeholder="e.g. Aloo Paratha"></div>
+      <div class="field"><label>Category</label>
+        <select id="nf-cat">
+          ${FOOD_CATS.map(c=>`<option value="${c}" ${ef.cat===c?"selected":""}>${c}</option>`).join("")}
+        </select>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Calories</label><input id="nf-cal" type="number" inputmode="numeric" value="${ef.cal||""}" placeholder="0"></div>
+        <div class="field"><label>Protein (g)</label><input id="nf-p" type="number" inputmode="decimal" value="${ef.p||""}" placeholder="0"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Carbs (g)</label><input id="nf-c" type="number" inputmode="decimal" value="${ef.c||""}" placeholder="0"></div>
+        <div class="field"><label>Fat (g)</label><input id="nf-f" type="number" inputmode="decimal" value="${ef.f||""}" placeholder="0"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Sugar (g)</label><input id="nf-s" type="number" inputmode="decimal" value="${ef.s||""}" placeholder="0"></div>
+        <div class="field"><label>Iron (mg)</label><input id="nf-fe" type="number" inputmode="decimal" step="0.1" value="${ef.fe||""}" placeholder="0"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Zinc (mg)</label><input id="nf-zn" type="number" inputmode="decimal" step="0.1" value="${ef.zn||""}" placeholder="0"></div>
+        <div class="field"><label>Potassium (mg)</label><input id="nf-k" type="number" inputmode="numeric" value="${ef.k||""}" placeholder="0"></div>
+      </div>
+      <div class="row-2">
+        <button class="btn btn-sub" data-toggle-add>Cancel</button>
+        <button class="btn btn-go" id="saveCustomFood">${editingFood?"Save Changes":"Add Food"}</button>
+      </div>
+    </div>`;
+  }
+
+  // --- Search bar ---
+  h+=`<div class="food-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    </svg>
+    <input id="foodSearch" type="search" placeholder="Search foods…" value="${esc(foodSearch)}" autocomplete="off">
+    ${foodSearch?'<button class="search-clear" data-clear-search>✕</button>':""}
+  </div>`;
+
+  const everything = allFoods();
+  if(foodSearch){
+    const hits = filterFoods(everything, foodSearch);
+    h+=`<div class="cat-head">Results <span style="color:var(--dim);font-weight:600">· ${hits.length}</span></div>`;
+    if(hits.length===0){
+      h+=`<div class="set-note" style="padding:10px 4px">No matches. <button class="link-btn" data-toggle-add>Add "${esc(foodSearch)}" as a new food?</button></div>`;
+    } else {
+      h+=`<div class="search-results">`;
+      hits.slice(0,30).forEach(f=> h+=foodRowHTML(f));
+      h+=`</div>`;
+    }
+  } else {
+    // --- Recents ---
+    const recents = recentFoods(6);
+    if(recents.length){
+      h+=`<div class="cat-head">Recent</div><div class="food-scroll">`;
+      recents.forEach(f=> h+=foodRowHTML(f));
+      h+=`</div>`;
+    }
+    // --- Categories ---
+    FOOD_CATS.forEach(cat=>{
+      const items = everything.filter(f=>f.cat===cat);
+      if(!items.length) return;
+      h+=`<div class="cat-head">${cat} <span style="color:var(--dim);font-weight:600">· ${items.length}</span></div>`;
+      h+=`<div class="food-scroll">`;
+      items.forEach(f=> h+=foodRowHTML(f));
+      h+=`</div>`;
+    });
+  }
+
   h+=toolsHTML();
   $app.innerHTML=h;
+  // wire the search input — keep state on input
+  const si=document.getElementById("foodSearch");
+  if(si){
+    si.addEventListener("input", e=>{
+      foodSearch = e.target.value;
+      // re-render but preserve focus + caret
+      const caret = e.target.selectionStart;
+      renderFood();
+      const ns = document.getElementById("foodSearch");
+      if(ns){ ns.focus(); ns.setSelectionRange(caret,caret); }
+    });
+  }
 }
+
 async function eatFood(name){
-  const f = FOODS.find(x=>x.name===name);
+  const f = allFoods().find(x=>x.name===name);
   if(!f) return;
+  const mult = portionOf(name);
+  const cal = Math.round(f.cal*mult);
   await DB.run(`INSERT INTO food_log (name,calories,protein,fat,carbs,sugar,iron,zinc,potassium,logged_at)
     VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [f.name,f.cal,f.p,f.f,f.c,f.s,f.fe,f.zn,f.k,new Date().toISOString()]);
-  flash(`−${f.cal} cal`); renderFood();
+    [f.name, cal, f.p*mult, f.f*mult, f.c*mult, f.s*mult, f.fe*mult, f.zn*mult, f.k*mult,
+     new Date().toISOString()]);
+  setPortion(name, 1);   // reset portion after logging
+  flash(`−${cal} cal · ${mult===1?"":mult+"× "}${f.name}`);
+  renderFood();
+}
+async function unlogFood(id){
+  await DB.run("DELETE FROM food_log WHERE id=?",[id]);
+  renderFood();
 }
 
 // ---------- shared ----------
@@ -851,8 +1017,56 @@ document.addEventListener("click", async (e)=>{
   if(t.dataset.delAct){ await DB.run("DELETE FROM activity_log WHERE id=?",[+t.dataset.delAct]); renderRun(); return; }
   if(t.id==="saveWeight")  return saveWeight();
 
-  if(t.dataset.food) return eatFood(t.dataset.food);
+  // --- food row clicks ---
+  if(t.dataset.port){
+    const [name, mult] = t.dataset.port.split("|");
+    setPortion(name, parseFloat(mult));
+    renderFood();
+    return;
+  }
+  if(t.dataset.addFood){ return eatFood(t.dataset.addFood); }
+  // tap anywhere else on the food row = log with current portion (handy fallback)
+  const foodEl = t.closest && t.closest(".food");
+  if(foodEl && foodEl.dataset.food){
+    return eatFood(foodEl.dataset.food);
+  }
   if(t.dataset.delFood){ await DB.run("DELETE FROM food_log WHERE id=?",[+t.dataset.delFood]); renderFood(); return; }
+  if(t.hasAttribute && t.hasAttribute("data-clear-search")){ foodSearch=""; renderFood(); return; }
+  if(t.hasAttribute && t.hasAttribute("data-toggle-add") ||
+     (t.closest && t.closest("[data-toggle-add]"))){
+    showAddFood = !showAddFood;
+    if(!showAddFood) editingFood = null;
+    renderFood();
+    if(showAddFood) setTimeout(()=>{const n=document.getElementById("nf-name"); if(n) n.focus();},50);
+    return;
+  }
+  if(t.id==="saveCustomFood"){
+    const v=(id)=>document.getElementById(id).value.trim();
+    const name=v("nf-name");
+    if(!name){ flash("Name required"); return; }
+    const cat=document.getElementById("nf-cat").value;
+    const cal=parseInt(v("nf-cal"))||0;
+    const p=parseFloat(v("nf-p"))||0;
+    const c=parseFloat(v("nf-c"))||0;
+    const f=parseFloat(v("nf-f"))||0;
+    const su=parseFloat(v("nf-s"))||0;
+    const fe=parseFloat(v("nf-fe"))||0;
+    const zn=parseFloat(v("nf-zn"))||0;
+    const k=parseInt(v("nf-k"))||0;
+    if(editingFood && editingFood.id){
+      await DB.run(`UPDATE custom_foods SET name=?,category=?,calories=?,protein=?,fat=?,carbs=?,sugar=?,iron=?,zinc=?,potassium=? WHERE id=?`,
+        [name,cat,cal,p,f,c,su,fe,zn,k,editingFood.id]);
+      flash("Updated");
+    } else {
+      await DB.run(`INSERT INTO custom_foods (name,category,calories,protein,fat,carbs,sugar,iron,zinc,potassium,created_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [name,cat,cal,p,f,c,su,fe,zn,k,new Date().toISOString()]);
+      flash("Food added");
+    }
+    showAddFood=false; editingFood=null;
+    renderFood();
+    return;
+  }
   if(t.dataset.delRun){ await DB.run("DELETE FROM run_log WHERE id=?",[+t.dataset.delRun]); renderRun(); return; }
   if(t.dataset.delWeight){ await DB.run("DELETE FROM weight_log WHERE id=?",[+t.dataset.delWeight]); renderWeight(); return; }
 

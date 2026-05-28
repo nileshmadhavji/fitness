@@ -62,6 +62,14 @@ const DB = (() => {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY, value TEXT
     );
+    CREATE TABLE IF NOT EXISTS custom_foods (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL, category TEXT NOT NULL,
+      calories INTEGER NOT NULL,
+      protein REAL DEFAULT 0, fat REAL DEFAULT 0, carbs REAL DEFAULT 0,
+      sugar REAL DEFAULT 0, iron REAL DEFAULT 0, zinc REAL DEFAULT 0, potassium REAL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
   `;
 
   async function init() {
