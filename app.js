@@ -254,6 +254,7 @@ function goalCarbs(){ return parseInt(getSetting('goal_carbs', GOAL_CARBS)); }
 function goalFat(){ return parseInt(getSetting('goal_fat', GOAL_FAT)); }
 function waterGoalMl(){ return parseInt(getSetting('water_goal', WATER_GOAL_ML)); }
 function goalZinc(){ return parseInt(getSetting('goal_zinc', GOAL_ZINC)); }
+function portionIncrement(){ return parseFloat(getSetting('portion_step', 0.25)); }
 function startKg(){ return parseFloat(getSetting('start_kg', START_KG)); }
 function targetKg(){ return parseFloat(getSetting('target_kg', TARGET_KG)); }
 function eatBackMode(){ return getSetting('eatback', 'off'); }  // off | half | full
@@ -469,18 +470,27 @@ function renderToday(){
 // ---------- water block (shared: dashboard + food) ----------
 function waterBlock(ml){
   const goalMl=waterGoalMl();
-  const glassCount=Math.round(goalMl/GLASS_ML);
-  const glasses=Math.round(ml/GLASS_ML);
-  let g="";
-  for(let i=0;i<glassCount;i++){
-    g+=`<button class="glass ${i<glasses?"full":""}" data-water="${i}"></button>`;
-  }
-  return `<div class="water-stat">
-      <span class="ws-big">${(ml/1000).toFixed(2)}L</span>
-      <span class="ws-goal">/ ${(goalMl/1000).toFixed(1)}L goal</span>
-    </div>
-    <div class="water-row">${g}</div>`;
+  const pct=Math.min(100, Math.round(ml/goalMl*100));
+  return `<div class="water-slim">
+      <button class="water-pm" data-water-add="-250" aria-label="less water">−</button>
+      <div class="water-mid">
+        <div class="water-amt"><span class="wa-big">${(ml/1000).toFixed(2)}</span><span class="wa-lbl">L</span>
+          <span class="wa-goal">/ ${(goalMl/1000).toFixed(1)}L</span></div>
+        <div class="water-bar"><span style="width:${pct}%"></span></div>
+      </div>
+      <button class="water-pm" data-water-add="250" aria-label="more water">+</button>
+    </div>`;
 }
+async function adjustWater(deltaMl){
+  const t = todayISO();
+  const have = waterToday();
+  const want = Math.max(0, have + deltaMl);
+  await DB.run("DELETE FROM water_log WHERE substr(logged_at,1,10)=?",[t]);
+  if(want>0)
+    await DB.run("INSERT INTO water_log (ml,logged_at) VALUES (?,?)",[want, new Date().toISOString()]);
+  render();
+}
+
 async function setWater(targetGlasses){
   // tapping glass N means "I've had N+1 glasses" — set total to that
   const want=(targetGlasses+1)*GLASS_ML;
@@ -702,36 +712,26 @@ async function saveWeight(){
 
 // ---------- FOOD ----------
 function foodRowHTML(f){
-  // colour bar
   const pc=f.p*4, cc=f.c*4, fc=f.f*9;
   const tot=Math.max(pc+cc+fc,1);
   const pPct=Math.round(pc/tot*100), cPct=Math.round(cc/tot*100);
   const fPct=100-pPct-cPct;
   const dense=f.cal>0 && (f.p/f.cal)>=0.10;
-  const mult=portionOf(f.name);
-  const shownCal=Math.round(f.cal*mult);
-  const portionLabel=mult===1?"":`<span class="portion-pill">${mult}×</span>`;
-  return `<div class="food" data-food="${esc(f.name)}">
+  return `<button class="food" data-food="${esc(f.name)}">
     <div class="food-main">
-      <div class="food-name">${esc(f.name)} ${portionLabel}${f.custom?'<span class="custom-pill">mine</span>':""}</div>
+      <div class="food-name">${esc(f.name)}${f.custom?'<span class="custom-pill">mine</span>':""}</div>
       <div class="food-bar">
         <span style="width:${pPct}%" class="fb-p"></span>
         <span style="width:${cPct}%" class="fb-c"></span>
         <span style="width:${fPct}%" class="fb-f"></span>
       </div>
       <div class="food-macro">
-        <b class="fm-p ${dense?"lean":""}">${Math.round(f.p*mult*10)/10}g protein</b>
-        <span>${Math.round(f.c*mult*10)/10}c · ${Math.round(f.f*mult*10)/10}f · ${Math.round(f.s*mult*10)/10}sug</span>
-      </div>
-      <div class="portion-row">
-        <button class="port-btn ${mult===0.5?"on":""}" data-port="${esc(f.name)}|0.5">½</button>
-        <button class="port-btn ${mult===1?"on":""}" data-port="${esc(f.name)}|1">1</button>
-        <button class="port-btn ${mult===1.5?"on":""}" data-port="${esc(f.name)}|1.5">1½</button>
-        <button class="port-btn ${mult===2?"on":""}" data-port="${esc(f.name)}|2">2</button>
-        <button class="port-btn add-btn" data-add-food="${esc(f.name)}">+ Log ${shownCal}</button>
+        <b class="fm-p ${dense?"lean":""}">${f.p}g protein</b>
+        <span>${f.c}c · ${f.f}f · ${f.s}sug</span>
       </div>
     </div>
-  </div>`;
+    <div class="food-cal">${f.cal}<span> cal</span></div>
+  </button>`;
 }
 
 function renderFood(){
@@ -781,11 +781,17 @@ function renderFood(){
     h+=`<div class="cat-head">Eaten today <span style="color:var(--dim);font-weight:600">· ${eaten.length}</span></div>
     <div class="eaten-scroll">`;
     eaten.forEach(e=>{
-      h+=`<div class="entry">
-        <span class="entry-main"><span class="entry-name">${esc(e.name)}</span>
-          <span class="entry-sub">${Math.round(e.protein)}p · ${Math.round(e.carbs)}c · ${Math.round(e.fat)}f · ${Math.round(e.sugar)} sugar</span></span>
-        <span class="entry-val" style="color:var(--move)">−${e.calories}</span>
-        <button class="x" data-del-food="${e.id}">✕</button>
+      h+=`<div class="entry eaten-entry">
+        <div class="entry-main">
+          <div class="entry-name">${esc(e.name)}</div>
+          <div class="entry-sub">${Math.round(e.protein)}p · ${Math.round(e.carbs)}c · ${Math.round(e.fat)}f</div>
+        </div>
+        <div class="entry-cal">−${e.calories}</div>
+        <div class="entry-pm">
+          <button class="pm-btn" data-adjust-food="${e.id}|-1" aria-label="less">−</button>
+          <button class="pm-btn" data-adjust-food="${e.id}|1" aria-label="more">+</button>
+          <button class="x" data-del-food="${e.id}">✕</button>
+        </div>
       </div>`;
     });
     h+=`</div>`;
@@ -894,6 +900,32 @@ async function eatFood(name){
   flash(`−${cal} cal · ${mult===1?"":mult+"× "}${f.name}`);
   renderFood();
 }
+async function adjustFood(id, direction){
+  const step = portionIncrement();
+  const e = DB.all("SELECT * FROM food_log WHERE id=?",[id])[0];
+  if(!e) return;
+  // figure out the original (1x) values by dividing current values by the implied multiplier
+  // but we never stored the multiplier — so: derive step values from the FOOD that matches by name
+  const base = allFoods().find(x=>x.name===e.name);
+  if(!base){ flash("Can't adjust — food not found"); return; }
+  // increment math: take the *base* per-serving values × step × direction
+  const dCal = Math.round(base.cal*step*direction);
+  if(direction<0 && e.calories+dCal<=0){
+    // would go to 0 or below — just delete it
+    await DB.run("DELETE FROM food_log WHERE id=?",[id]);
+    flash(`Removed ${e.name}`);
+    renderFood();
+    return;
+  }
+  await DB.run(`UPDATE food_log SET
+    calories=calories+?, protein=protein+?, fat=fat+?, carbs=carbs+?,
+    sugar=sugar+?, iron=iron+?, zinc=zinc+?, potassium=potassium+?
+    WHERE id=?`,
+    [dCal, base.p*step*direction, base.f*step*direction, base.c*step*direction,
+     base.s*step*direction, base.fe*step*direction, base.zn*step*direction, base.k*step*direction, id]);
+  flash(`${direction>0?"+":""}${dCal} cal`);
+  renderFood();
+}
 async function unlogFood(id){
   await DB.run("DELETE FROM food_log WHERE id=?",[id]);
   renderFood();
@@ -927,6 +959,11 @@ function renderSettings(){
       <input type="number" inputmode="numeric" id="set-fat" value="${goalFat()}"></div>
     <div class="set-row"><span class="set-lbl">Water goal (L)</span>
       <input type="number" inputmode="decimal" step="0.5" id="set-water" value="${(waterGoalMl()/1000).toFixed(1)}"></div>
+    <div class="set-row"><span class="set-lbl">Portion +/− step</span>
+      <select id="set-portionstep">
+        ${[["0.25","¼ serving"],["0.5","½ serving"],["1","1 serving"]].map(([v,l])=>
+          `<option value="${v}" ${parseFloat(v)===portionIncrement()?"selected":""}>${l}</option>`).join("")}
+      </select></div>
   </div>`;
 
   // --- eat-back mode ---
@@ -989,10 +1026,8 @@ document.addEventListener("click", async (e)=>{
   if(t.dataset.day!==undefined){ activeDay=+t.dataset.day; renderWorkout(); scrollTo(0,0); return; }
   if(t.dataset.runsub){ runSubTab=t.dataset.runsub; renderRun(); scrollTo(0,0); return; }
 
-  if(t.dataset.water!==undefined){
-    await setWater(+t.dataset.water);
-    render();
-    return;
+  if(t.dataset.waterAdd!==undefined){
+    return adjustWater(parseInt(t.dataset.waterAdd));
   }
 
   if(t.dataset.timer){
@@ -1018,14 +1053,11 @@ document.addEventListener("click", async (e)=>{
   if(t.id==="saveWeight")  return saveWeight();
 
   // --- food row clicks ---
-  if(t.dataset.port){
-    const [name, mult] = t.dataset.port.split("|");
-    setPortion(name, parseFloat(mult));
-    renderFood();
-    return;
+  if(t.dataset.adjustFood){
+    const [id, dir] = t.dataset.adjustFood.split("|");
+    return adjustFood(+id, parseInt(dir));
   }
-  if(t.dataset.addFood){ return eatFood(t.dataset.addFood); }
-  // tap anywhere else on the food row = log with current portion (handy fallback)
+  // tap a food row to log 1 serving
   const foodEl = t.closest && t.closest(".food");
   if(foodEl && foodEl.dataset.food){
     return eatFood(foodEl.dataset.food);
@@ -1087,6 +1119,8 @@ document.addEventListener("click", async (e)=>{
     if(c) await setSetting('goal_carbs', parseInt(c));
     if(f) await setSetting('goal_fat', parseInt(f));
     if(w) await setSetting('water_goal', Math.round(parseFloat(w)*1000));
+    const ps = document.getElementById('set-portionstep');
+    if(ps) await setSetting('portion_step', ps.value);
     if(sk) await setSetting('start_kg', parseFloat(sk));
     if(tk) await setSetting('target_kg', parseFloat(tk));
     flash("Settings saved");
