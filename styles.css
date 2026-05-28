@@ -470,14 +470,14 @@ body { padding-bottom: 88px; padding-top: env(safe-area-inset-top); }
 
 /* ---- food row: glanceable macro breakdown ---- */
 .food-bar {
-  display: flex; gap: 2px; height: 5px;
-  border-radius: 3px; overflow: hidden;
-  margin: 6px 0 5px;
+  display: flex; gap: 1px; height: 2.5px;
+  border-radius: 2px; overflow: hidden;
+  margin: 5px 0 4px; opacity: 0.55;
 }
 .food-bar span { display: block; height: 100%; }
-.food-bar .fb-p { background: var(--exercise); }   /* protein — lime */
-.food-bar .fb-c { background: var(--stand); }       /* carbs — cyan */
-.food-bar .fb-f { background: #ffd426; }            /* fat — yellow */
+.food-bar .fb-p { background: var(--exercise); }
+.food-bar .fb-c { background: var(--stand); }
+.food-bar .fb-f { background: #ffd426; }
 .food-macro {
   display: flex; align-items: baseline; gap: 7px;
   font-size: 0.76rem; color: var(--dim);
